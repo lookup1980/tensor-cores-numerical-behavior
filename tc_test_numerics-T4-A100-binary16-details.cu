@@ -198,8 +198,23 @@ void my_test_addr() {
   float fb[16*16] = {};
   float temp = 0;
 
+  printf("\n");
+  printf("---------------------------------------------------\n");
   printf("Tests for addr of DP\n");
 
+  // case
+  printf("\n");
+  printf("case: 2^-23 + 1");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = ldexp(1.f, -23);
+  fb[0] = 1.0f;
+  fa[3] = 1.0f;
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
   // case
   printf("\n");
@@ -218,35 +233,7 @@ void my_test_addr() {
 
   // case
   printf("\n");
-  printf("case: 2^-23 + 1");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -23);
-  fb[0] = 1.0f;
-  fa[3] = 1.0f;
-  fb[3] = 1.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
-  printf("\n");
   printf("case: 2^-24 - 1 + 1");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -24);
-  fb[0] = 1.0f;
-  fa[2] = -1.0f;
-  fb[2] = 1.0f;
-  fa[3] = 1.0f;
-  fb[3] = 1.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
   reset_all(fa, fb, h_a, h_b, h_c);
   fa[0] = ldexp(1.f, -24);
   fb[0] = 1.0f;
@@ -260,35 +247,35 @@ void my_test_addr() {
   wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
   print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
-  // case
-  printf("\n");
-  printf("case: 2^-24 - 2 + 2");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -24);
-  fb[0] = 1.0f;
-  fa[2] = -1.0f;
-  fb[2] = 2.0f;
-  fa[3] = 1.0f;
-  fb[3] = 2.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+  // // case
+  // printf("\n");
+  // printf("case: 2^-24 - 2 + 2");
+  // reset_all(fa, fb, h_a, h_b, h_c);
+  // fa[0] = ldexp(1.f, -24);
+  // fb[0] = 1.0f;
+  // fa[2] = -1.0f;
+  // fb[2] = 2.0f;
+  // fa[3] = 1.0f;
+  // fb[3] = 2.0f;
+  // h_c[0] = 0.0f;
+  // temp = h_c[0];
+  // float_to_half(fa, fb, h_a, h_b);
+  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
-  // case
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -24);
-  fb[0] = 1.0f;
-  fa[1] = -1.0f;
-  fb[1] = 2.0f;
-  fa[3] = 1.0f;
-  fb[3] = 2.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+  // // case
+  // reset_all(fa, fb, h_a, h_b, h_c);
+  // fa[0] = ldexp(1.f, -24);
+  // fb[0] = 1.0f;
+  // fa[1] = -1.0f;
+  // fb[1] = 2.0f;
+  // fa[3] = 1.0f;
+  // fb[3] = 2.0f;
+  // h_c[0] = 0.0f;
+  // temp = h_c[0];
+  // float_to_half(fa, fb, h_a, h_b);
+  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
   // case
   printf("\n");
@@ -296,20 +283,6 @@ void my_test_addr() {
   reset_all(fa, fb, h_a, h_b, h_c);
   fa[0] = 1.0f;
   fb[0] = 2.0f;
-  fa[1] = -1.0f;
-  fb[1] = 2.0f;
-  fa[3] = ldexp(1.f, -24);
-  fb[3] = 1.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = 1.0f;
-  fb[0] = 2.0f;
   fa[2] = -1.0f;
   fb[2] = 2.0f;
   fa[3] = ldexp(1.f, -24);
@@ -320,74 +293,44 @@ void my_test_addr() {
   wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
   print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
-  // case
-  printf("\n");
-  printf("case: 2 - 2 + 2^-25");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = 1.0f;
-  fb[0] = 2.0f;
-  fa[1] = -1.0f;
-  fb[1] = 2.0f;
-  fa[3] = ldexp(1.f, -24);
-  fb[3] = 0.5f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+  // // case
+  // printf("\n");
+  // printf("case: 2^-24 - 4 + 4");
+  // reset_all(fa, fb, h_a, h_b, h_c);
+  // fa[0] = ldexp(1.f, -24);
+  // fb[0] = 1.0f;
+  // fa[2] = -1.0f;
+  // fb[2] = 4.0f;
+  // fa[3] = 1.0f;
+  // fb[3] = 4.0f;
+  // h_c[0] = 0.0f;
+  // temp = h_c[0];
+  // float_to_half(fa, fb, h_a, h_b);
+  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // // case
+  // reset_all(fa, fb, h_a, h_b, h_c);
+  // fa[0] = ldexp(1.f, -24);
+  // fb[0] = 1.0f;
+  // fa[1] = -1.0f;
+  // fb[1] = 4.0f;
+  // fa[3] = 1.0f;
+  // fb[3] = 4.0f;
+  // h_c[0] = 0.0f;
+  // temp = h_c[0];
+  // float_to_half(fa, fb, h_a, h_b);
+  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
   // case
+  printf("\n");
+  printf("case: 2^8 - 2^8 + 2^-24");
   reset_all(fa, fb, h_a, h_b, h_c);
   fa[0] = 1.0f;
-  fb[0] = 2.0f;
+  fb[0] = ldexp(1.f, 8);
   fa[2] = -1.0f;
-  fb[2] = 2.0f;
-  fa[3] = ldexp(1.f, -24);
-  fb[3] = 0.5f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
-  printf("\n");
-  printf("case: 2^-24 - 4 + 4");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -24);
-  fb[0] = 1.0f;
-  fa[2] = -1.0f;
-  fb[2] = 4.0f;
-  fa[3] = 1.0f;
-  fb[3] = 4.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = ldexp(1.f, -24);
-  fb[0] = 1.0f;
-  fa[1] = -1.0f;
-  fb[1] = 4.0f;
-  fa[3] = 1.0f;
-  fb[3] = 4.0f;
-  h_c[0] = 0.0f;
-  temp = h_c[0];
-  float_to_half(fa, fb, h_a, h_b);
-  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
-
-  // case
-  printf("\n");
-  printf("case: 4 - 4 + 2^-24");
-  reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = 1.0f;
-  fb[0] = 4.0f;
-  fa[1] = -1.0f;
-  fb[1] = 4.0f;
+  fb[2] = ldexp(1.f, 8);
   fa[3] = ldexp(1.f, -24);
   fb[3] = 1.0f;
   h_c[0] = 0.0f;
@@ -397,11 +340,13 @@ void my_test_addr() {
   print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
   // case
+  printf("\n");
+  printf("case: 2^16 - 2^16 + 2^-24");
   reset_all(fa, fb, h_a, h_b, h_c);
-  fa[0] = 1.0f;
-  fb[0] = 4.0f;
-  fa[2] = -1.0f;
-  fb[2] = 4.0f;
+  fa[0] = ldexp(1.f, 8);
+  fb[0] = ldexp(1.f, 8);
+  fa[2] = -ldexp(1.f, 8);
+  fb[2] = ldexp(1.f, 8);
   fa[3] = ldexp(1.f, -24);
   fb[3] = 1.0f;
   h_c[0] = 0.0f;
@@ -409,6 +354,39 @@ void my_test_addr() {
   float_to_half(fa, fb, h_a, h_b);
   wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
   print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^24 - 2^24 + 2^-24");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = ldexp(1.f, 12);
+  fb[0] = ldexp(1.f, 12);
+  fa[2] = -ldexp(1.f, 12);
+  fb[2] = ldexp(1.f, 12);
+  fa[3] = ldexp(1.f, -24);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^29 - 2^29 + 2^-24");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = ldexp(1.f, 14);
+  fb[0] = ldexp(1.f, 15);
+  fa[2] = -ldexp(1.f, 14);
+  fb[2] = ldexp(1.f, 15);
+  fa[3] = ldexp(1.f, -24);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
 
   // Free dynamically allocated memory.
   free(h_a);
@@ -442,6 +420,8 @@ void my_test_normalize() {
   float fb[16*16] = {};
   float temp = 0;
 
+  printf("\n");
+  printf("---------------------------------------------------\n");
   printf("Tests for normalization before add accumulator\n");
 
   // case
@@ -535,6 +515,6 @@ void my_test_normalize() {
  * EXPERIMENTS *
  ***************/
 int main(int argc, char** argv){
-  // my_test_addr();
+  my_test_addr();
   my_test_normalize();
 }
