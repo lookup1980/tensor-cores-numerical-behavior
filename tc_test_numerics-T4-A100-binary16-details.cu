@@ -138,11 +138,12 @@ void float_to_half(float *fa, float *fb, half *ha, half *hb) {
 }
 
 float get_float_reference(float *fa, float *fb, float c) {
+  float cc = 0.0f;
   for (size_t i = 0; i < 4; i++)
   {
-    c += fa[i] * fb[i];
+    cc += fa[i] * fb[i];
   }
-  return c;
+  return cc + c;
 }
 
 void print_result(float *fa, float *fb, half *ha, half *hb, float c, float result) {
@@ -176,7 +177,7 @@ void reset_all(float *fa, float *fb, half *ha, half *hb, float *fc) {
   memset(fc, 0, 16*16*sizeof(float));
 }
 
-void my_test() {
+void my_test_addr() {
 
   // Declare pointers and allocate memory.
   half *h_a, *h_b, *h16_c, *d16_a, *d16_b, *d16_c;
@@ -196,6 +197,9 @@ void my_test() {
   float fa[16*16] = {};
   float fb[16*16] = {};
   float temp = 0;
+
+  printf("Tests for addr of DP\n");
+
 
   // case
   printf("\n");
@@ -406,67 +410,115 @@ void my_test() {
   wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
   print_result(fa, fb, h_a, h_b, temp, h_c[0]);
 
-  // // case
-  // host_reset(h_a, h_b, h_c);
-  // fa[0] = -ldexp(1.f, -24);
-  // fb[0] = 1.0f;
-  // fa[3] = 1.0f;
-  // fb[3] = 1.0f;
-  // h_c[0] = 0.0f;
-  // temp = h_c[0];
-  // float_to_half(fa, fb, h_a, h_b);
-  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+  // Free dynamically allocated memory.
+  free(h_a);
+  free(h_b);
+  free(h16_c);
+  cudaFree(d16_a);
+  cudaFree(d16_b);
+  cudaFree(d16_c);
+  cudaFree(d_c);
+  free(h_c);
+}
 
-  // // case
-  // host_reset(h_a, h_b, h_c);
-  // fa[0] = ldexp(1.f, -24);
-  // fb[0] = 1.0f;
-  // fa[1] = ldexp(1.f, -24);
-  // fb[1] = 1.0f;
-  // fa[3] = 1.0f;
-  // fb[3] = 1.0f;
-  // h_c[0] = 0.0f;
-  // temp = h_c[0];
-  // float_to_half(fa, fb, h_a, h_b);
-  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+void my_test_normalize() {
 
-  // // case
-  // host_reset(h_a, h_b, h_c);
-  // fa[0] = -ldexp(1.f, -24);
-  // fb[0] = 0.5f;
-  // fa[1] = -ldexp(1.f, -24);
-  // fb[1] = 0.5f;
-  // fa[2] = -ldexp(1.f, -24);
-  // fb[2] = 0.5f;
-  // fa[3] = 1.0f;
-  // fb[3] = 1.0f;
-  // h_c[0] = 0.0f;
-  // temp = h_c[0];
+  // Declare pointers and allocate memory.
+  half *h_a, *h_b, *h16_c, *d16_a, *d16_b, *d16_c;
+  float *d_c, *h_c;
 
-  // float_to_half(fa, fb, h_a, h_b);
-  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
-  // print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+  h_a = new half[16*16];
+  h_b = new half[16*16];
+  h_c = new float[16*16];
+  h16_c = new half[16*16];
 
+  cudaMalloc(&d16_a, 16*16*sizeof(half));
+  cudaMalloc(&d16_b, 16*16*sizeof(half));
+  cudaMalloc(&d16_c, 16*16*sizeof(half));
+  cudaMalloc(&d_c, 16*16*sizeof(float));
 
-  // host_reset(h_a, h_b, h_c);
-  // h_a[0] = __float2half(-ldexp(1.f, -24)); // 0x8001
-  // h_b[0] = __float2half(0.5f);
-  // h_a[1] = __float2half(-ldexp(1.f, -24)); // 0x8001
-  // h_b[1] = __float2half(0.5f);
-  // h_a[2] = __float2half(-ldexp(1.f, -24)); // 0x8001
-  // h_b[2] = __float2half(0.5f);
-  // h_a[3] = one16;
-  // h_b[3] = one16;
-  // h_c[0] = 0.0f;
+  // mgu
+  float fa[16*16] = {};
+  float fb[16*16] = {};
+  float temp = 0;
 
-  // wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  printf("Tests for normalization before add accumulator\n");
 
-  // // mgu
-  // printfloat(h_c[0]);
-  // float temp = 1.0f - ldexp(1.f, -24) * ldexp(1.f, -6);
-  // printfloat(temp);
+  // case
+  printf("\n");
+  printf("case: 1, 2^-23");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  h_c[0] = ldexp(1.f, -23);
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 1, 2^-24");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  h_c[0] = ldexp(1.f, -24);
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 1, 2^-25");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  h_c[0] = ldexp(1.f, -25);
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 1, 2^-26");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  h_c[0] = ldexp(1.f, -26);
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 1, 2^-40");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  h_c[0] = ldexp(1.f, -40);
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
 
   // Free dynamically allocated memory.
   free(h_a);
@@ -478,14 +530,11 @@ void my_test() {
   cudaFree(d_c);
   free(h_c);
 }
+
 /***************
  * EXPERIMENTS *
  ***************/
 int main(int argc, char** argv){
-  // test_subnormal();
-  // test_dot_product();
-  // test_rounding();
-  // test_accumulator();
-
-  my_test();
+  // my_test_addr();
+  my_test_normalize();
 }
