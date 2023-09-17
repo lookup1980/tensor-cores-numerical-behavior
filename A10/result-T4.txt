@@ -1,0 +1,37 @@
++--------------------------------------------------------------+
+| A. Support for subnormal numbers                             |
++--------------------------------------------------------------+
+  | *) Binary16 subnormals in input (binary16 mode)   [PASS] |
+  | *) Binary16 subnormals in input (binary32 mode)   [PASS] |
+  | *) Binary32 subnormals in input                   [PASS] |
+  | *) Binary16 subnormals in output (binary16 mode)  [PASS] |
+  | *) Binary16 subnormals in output (binary32 mode)  [PASS] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| B. Accuracy of the dot products                              |
++--------------------------------------------------------------+
+  | *) Products are computed exactly                  [PASS] |
+  | *) Products exact (binary16 mode)                 [PASS] |
+  | *) Products are accumulated in binary32           [PASS] |
+  | *) Sum starts from largest element                [PASS] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| C. Rounding modes in tensor core computations                |
++--------------------------------------------------------------+
+  | *) Round-down for positive values                 [PASS] |
+  | *) Round-up for negative values                   [PASS] |
+  | *) Accum. is rounded to nearest (binary16 mode)   [PASS] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| D. Features of the accumulator                               |
++--------------------------------------------------------------+
+  | 1) Extra bits in the significand alignment        [PASS] |
+  | 2) Normalization in addition                      [PASS] |
+  | 3) Normalization in subtraction                   [PASS] |
+  | 4) Extra bits for carry out                       [PASS] |
+  | 5) Monotonicity of dot product                    [PASS] |
+  +----------------------------------------------------------+
+
