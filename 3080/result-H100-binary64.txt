@@ -1,0 +1,31 @@
++--------------------------------------------------------------+
+| A. Support for subnormal numbers                             |
++--------------------------------------------------------------+
+  | *) Binary64 subnormals in input                   [FAIL] |
+  | *) Binary64 subnormals in output                  [FAIL] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| B. Accuracy of the dot products                              |
++--------------------------------------------------------------+
+  | *) Products are accumulated in binary64           [PASS] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| C. Rounding modes in tensor core computations                |
++--------------------------------------------------------------+
+  | *) Round-to-nearest for positive values           [FAIL] |
+  | *) Round-to-nearest for negative values           [FAIL] |
+  | *) Round-to-nearest ties broken to even           [FAIL] |
+  +----------------------------------------------------------+
+
++--------------------------------------------------------------+
+| D. Features of the accumulator                               |
++--------------------------------------------------------------+
+  | 1) Extra bits in the significand alignment        [FAIL] |
+  | 2) Normalization in addition (after each add)     [FAIL] |
+  | 3) Normalization in subtraction                   [FAIL] |
+  | 4) No extra bits for carry out                    [FAIL] |
+  | 5) Monotonicity of dot product                    [PASS] |
+  +----------------------------------------------------------+
+
