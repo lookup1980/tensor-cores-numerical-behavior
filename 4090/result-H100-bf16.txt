@@ -1,33 +1,4 @@
 +--------------------------------------------------------------+
 | A. Support for subnormal numbers                             |
 +--------------------------------------------------------------+
-  | *) Bfloat16 subnormals in input (binary32 mode)   [FAIL] |
-  | *) Binary32 subnormals in input                   [PASS] |
-  | *) Bfloat16/binary32 subnormals in output (binary32 mode) [FAIL] |
-  +----------------------------------------------------------+
-
-+--------------------------------------------------------------+
-| B. Accuracy of the dot products                              |
-+--------------------------------------------------------------+
-  | *) Products are computed exactly                  [FAIL] |
-  | *) Products are accumulated in binary32           [PASS] |
-  | *) Sum starts from largest element                [FAIL] |
-  +----------------------------------------------------------+
-
-+--------------------------------------------------------------+
-| C. Rounding modes in tensor core computations                |
-+--------------------------------------------------------------+
-  | *) Round-down for positive values                 [FAIL] |
-  | *) Round-up for negative values                   [FAIL] |
-  +----------------------------------------------------------+
-
-+--------------------------------------------------------------+
-| D. Features of the accumulator                               |
-+--------------------------------------------------------------+
-  | 1) Extra bits in the significand alignment        [FAIL] |
-  | 2) Normalization in addition                      [FAIL] |
-  | 3) Normalization in subtraction                   [FAIL] |
-  | 4) Extra bits for carry out                       [FAIL] |
-  | 5) Monotonicity of dot product                    [FAIL] |
-  +----------------------------------------------------------+
-
+  | *) Bfloat16 subnormals in input (binary32 mode)  

@@ -93,23 +93,41 @@ __global__ void wmma_ker(nv_bfloat16 *a, nv_bfloat16 *b,
   wmma::store_matrix_sync(c, c_fragment, 16, wmma::mem_col_major);
 }
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 /* Copy data from host to device, perform the operation, and copy result back to
    host. */
 template <typename returntype>
 void wmma_init_run (nv_bfloat16 *h_a, nv_bfloat16 *h_b, returntype *h_c,
                     nv_bfloat16 *d_a, nv_bfloat16 *d_b, returntype *d_c,
                     bool init) {
+  
+  gpuErrchk( (cudaGetLastError()) );
 
   // Copy input from host to device.
   cudaMemcpy(d_a, h_a, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice);
   cudaMemcpy(d_b, h_b, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice);
   cudaMemcpy(d_c, h_c, 16*16*sizeof(returntype), cudaMemcpyHostToDevice);
 
+  gpuErrchk( (cudaGetLastError()) );
+
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
 
+  gpuErrchk( (cudaGetLastError()) );
+
   // Copy result from device to host.
   cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost);
+
+  gpuErrchk( (cudaGetLastError()) );
 }
 
 
@@ -289,10 +307,12 @@ int main(int argc, char** argv){
   h_a[0] = one16;
   h_b[0] = one16;
   h_c[0] = -belowone;
+  // h_c[0] = 1.0f;
   wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
   assert(1 - belowone == ldexp(1., -24));
   assert(gapbelowone == ldexp(1., -24));
   printpass(outfile, h_c[0] == ldexp(1., -24));
+  // fprintf(outfile, "%x \n", ((uint32_t*)h_c)[0]);
 
   printitem(outfile, "2) Normalization in addition");
   host_reset(h_a, h_b, h_c);
