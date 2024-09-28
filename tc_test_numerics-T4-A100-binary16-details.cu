@@ -233,6 +233,37 @@ void my_test_addr() {
 
   // case
   printf("\n");
+  printf("case: 2^-12 * 2^-12 + 1");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = ldexp(1.f, -12);
+  fb[0] = ldexp(1.f, -12);
+  fa[3] = 1.0f;
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^-23 - 1 + 1");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = ldexp(1.f, -23);
+  fb[0] = 1.0f;
+  fa[1] = -1.0f;
+  fb[1] = 1.0f;
+  fa[3] = 1.0f;
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
   printf("case: 2^-24 - 1 + 1");
   reset_all(fa, fb, h_a, h_b, h_c);
   fa[0] = ldexp(1.f, -24);
@@ -325,13 +356,77 @@ void my_test_addr() {
 
   // case
   printf("\n");
-  printf("case: 2^8 - 2^8 + 2^-24");
+  printf("case: 2^4 - 2^4 + 2^-24");
   reset_all(fa, fb, h_a, h_b, h_c);
   fa[0] = 1.0f;
-  fb[0] = ldexp(1.f, 8);
+  fb[0] = ldexp(1.f, 4);
   fa[2] = -1.0f;
-  fb[2] = ldexp(1.f, 8);
+  fb[2] = ldexp(1.f, 4);
   fa[3] = ldexp(1.f, -24);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^4 - 2^4 + 2^-23");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = ldexp(1.f, 4);
+  fa[2] = -1.0f;
+  fb[2] = ldexp(1.f, 4);
+  fa[3] = ldexp(1.f, -23);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^4 - 2^4 + 2^-22");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = ldexp(1.f, 4);
+  fa[2] = -1.0f;
+  fb[2] = ldexp(1.f, 4);
+  fa[3] = ldexp(1.f, -22);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^4 - 2^4 + 2^-21");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = ldexp(1.f, 4);
+  fa[2] = -1.0f;
+  fb[2] = ldexp(1.f, 4);
+  fa[3] = ldexp(1.f, -21);
+  fb[3] = 1.0f;
+  h_c[0] = 0.0f;
+  temp = h_c[0];
+  float_to_half(fa, fb, h_a, h_b);
+  wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);
+  print_result(fa, fb, h_a, h_b, temp, h_c[0]);
+
+  // case
+  printf("\n");
+  printf("case: 2^4 - 2^4 + 2^-20");
+  reset_all(fa, fb, h_a, h_b, h_c);
+  fa[0] = 1.0f;
+  fb[0] = ldexp(1.f, 4);
+  fa[2] = -1.0f;
+  fb[2] = ldexp(1.f, 4);
+  fa[3] = ldexp(1.f, -20);
   fb[3] = 1.0f;
   h_c[0] = 0.0f;
   temp = h_c[0];
