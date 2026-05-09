@@ -1,0 +1,48 @@
++--------------------------------------------------------------+
+| A. 5090 direct-PTX low-precision reduction-width probe       |
++--------------------------------------------------------------+
+  | Probe: D = 2^shift + K                                     |
+  | Method: scan largest shift where D changes                 |
+  | Notes: single warp, direct mma.sync.aligned PTX            |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   max shift with D > C: 25                          |
+  |   observed width bits: 21                              |
+  |   binary32 reference max shift: 28                   |
+  |   binary32 reference bits: 24                        |
+  |   sample at max shift: 33554464                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   max shift with D > C: 25                          |
+  |   observed width bits: 21                              |
+  |   binary32 reference max shift: 28                   |
+  |   binary32 reference bits: 24                        |
+  |   sample at max shift: 33554464                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   max shift with D > C: 25                          |
+  |   observed width bits: 21                              |
+  |   binary32 reference max shift: 28                   |
+  |   binary32 reference bits: 24                        |
+  |   sample at max shift: 33554464                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   max shift with D > C: 25                          |
+  |   observed width bits: 21                              |
+  |   binary32 reference max shift: 28                   |
+  |   binary32 reference bits: 24                        |
+  |   sample at max shift: 33554464                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  +----------------------------------------------------------+
+

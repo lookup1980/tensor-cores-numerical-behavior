@@ -1,0 +1,18 @@
++--------------------------------------------------------------+
+| A. 5090 direct-PTX low-precision reduction-width probe       |
++--------------------------------------------------------------+
+  | Probe: D = 2^shift + K                                     |
+  | Method: scan largest shift where D changes                 |
+  | Notes: single warp, direct mma.sync.aligned PTX            |
+  | FP4 E2M1 x E2M1                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32 |
+  |   K per instruction: 32                                  |
+  |   max shift with D > C: 25                          |
+  |   observed width bits: 21                              |
+  |   binary32 reference max shift: 28                   |
+  |   binary32 reference bits: 24                        |
+  |   sample at max shift: 33554464                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  +----------------------------------------------------------+
+
