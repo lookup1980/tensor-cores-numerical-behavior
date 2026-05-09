@@ -17,7 +17,7 @@ BASE_FORMAT_TARGETS = binary16 bf16 binary64 tf32 binary16-details
 EXTRA_FORMAT_TARGETS_A100 =
 EXTRA_FORMAT_TARGETS_H100 =
 EXTRA_FORMAT_TARGETS_4090 =
-EXTRA_FORMAT_TARGETS_5090 = fp8 fp6 fp4
+EXTRA_FORMAT_TARGETS_5090 = fp8 fp6 fp4 fp8-reduction-width fp6-reduction-width fp4-reduction-width
 FORMAT_TARGETS = $(BASE_FORMAT_TARGETS)
 
 SRC_V100 = src/tc_test_numerics-V100.cu
@@ -27,6 +27,7 @@ SRC_BF16 = src/tc_test_numerics-A100-bf16.cu
 SRC_BINARY64 = src/tc_test_numerics-A100-binary64.cu
 SRC_TF32 = src/tc_test_numerics-A100-tf32.cu
 SRC_5090_LOW_PRECISION = src/tc_test_numerics-5090-low-precision.cu
+SRC_5090_LOWP_REDUCTION_WIDTH = src/tc_test_numerics-5090-lowp-reduction-width.cu
 
 SUPPORTED_SMS = $(shell nvcc --list-gpu-code 2>/dev/null)
 ALL_TARGETS =
@@ -78,6 +79,15 @@ test-5090-fp6: $(SRC_5090_LOW_PRECISION)
 
 test-5090-fp4: $(SRC_5090_LOW_PRECISION)
 	$(NVCC) $(NVCC_INCLUDES) -DTCNB_LOW_PRECISION_FP4 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $<
+
+test-5090-fp8-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP8 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
+
+test-5090-fp6-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP6 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
+
+test-5090-fp4-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP4 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
 
 clean: $(addprefix clean-,$(GPU_TARGETS)) clean-result
 
