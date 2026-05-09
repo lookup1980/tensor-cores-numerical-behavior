@@ -23,6 +23,7 @@
 #include "include/tcnb_output.hpp"
 #include "include/tcnb_cuda_check.cuh"
 #include "include/tcnb_matrix.cuh"
+#include "include/tcnb_device_tile.cuh"
 
 using namespace nvcuda;
 
@@ -91,16 +92,16 @@ void wmma_init_run (half *h_a, half *h_b, returntype *h_c,
                     bool init) {
 
   // Copy input from host to device.
-  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, TCNB_TILE_ELEMENTS * sizeof(half), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, TCNB_TILE_ELEMENTS * sizeof(half), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyHostToDevice));
+  copy_tile_to_device(d_a, h_a);
+  copy_tile_to_device(d_b, h_b);
+  copy_tile_to_device(d_c, h_c);
 
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
   TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyDeviceToHost));
+  copy_tile_to_host(h_c, d_c);
 }
 
 
@@ -133,10 +134,10 @@ int main(int argc, char** argv){
   h_c = new float[TCNB_TILE_ELEMENTS];
   h16_c = new half[TCNB_TILE_ELEMENTS];
 
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, TCNB_TILE_ELEMENTS * sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, TCNB_TILE_ELEMENTS * sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, TCNB_TILE_ELEMENTS * sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_c, TCNB_TILE_ELEMENTS * sizeof(float)));
+  d16_a = device_tile_alloc<half>();
+  d16_b = device_tile_alloc<half>();
+  d16_c = device_tile_alloc<half>();
+  d_c = device_tile_alloc<float>();
 
   FILE *outfile = stdout;
   bool pass;
