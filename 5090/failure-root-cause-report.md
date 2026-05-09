@@ -15,11 +15,7 @@ Date: 2026-05-09
 
 ```sh
 make -B test-5090
-./test-5090-bf16 > 5090/result-5090-bf16.txt
-./test-5090-binary16 > 5090/result-5090-binary16.txt
-./test-5090-binary16-details > 5090/result-5090-binary16-details.txt
-./test-5090-binary64 > 5090/result-5090-binary64.txt
-./test-5090-tf32 > 5090/result-5090-tf32.txt
+python3 run_tests.py -o 5090 5090
 compute-sanitizer --tool memcheck ./test-5090-binary16
 compute-sanitizer --tool memcheck ./test-5090-bf16
 compute-sanitizer --tool memcheck ./test-5090-tf32
@@ -42,6 +38,19 @@ The failures appear in the binary16, bfloat16, and tf32 tests:
 | `test-5090-tf32` | `Products are accumulated in binary32`, `Sum starts from largest element`, `Monotonicity of dot product` |
 
 `test-5090-binary64` passes all checks.
+
+The CUDA 13.2 low-precision format probes also pass on the RTX 5090:
+
+| Test | Scope |
+| --- | --- |
+| `test-5090-fp8` | FP8 E4M3/E5M2 host and device scalar/vector conversions |
+| `test-5090-fp6` | FP6 E2M3/E3M2 host and device scalar/vector conversions |
+| `test-5090-fp4` | FP4 E2M1 host and device scalar/vector conversions |
+
+These probes confirm CUDA type/conversion availability and device execution for
+`sm_120`. They do not claim fp8/fp6/fp4 WMMA numerical behavior, because the
+current CUDA 13.2 `mma.h` interface used by this suite does not expose matching
+fp8/fp6/fp4 WMMA fragments.
 
 ## Tensor-Core Instructions
 
@@ -163,6 +172,7 @@ predicates:
 - The generated 5090 binaries compile and run for `sm_120`.
 - Device-side memory checking is clean.
 - Binary64 behavior matches the existing predicates.
+- FP8, FP6, and FP4 CUDA low-precision type/conversion probes pass on 5090.
 - Binary16, bfloat16, and tf32 HMMA float-accumulator paths preserve aggregate
   sub-ULP contributions that older binary32-per-add predicates expected to lose.
 
