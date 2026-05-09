@@ -1,6 +1,6 @@
 NVCC = nvcc -g -G 
 
-all: test-V100 test-T4 test-A100 test-H100 test-4090
+all: test-V100 test-T4 test-A100 test-H100 test-4090 test-5090
 
 test-V100: tc_test_numerics-V100.cu
 	$(NVCC) -o $@ -arch=sm_70 -std=c++11 $<
@@ -41,7 +41,18 @@ test-4090-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
 test-4090-%: tc_test_numerics-A100-%.cu
 	$(NVCC) -o $@ -arch=sm_89 -std=c++11 $<
 
-clean: clean-V100 clean-T4 clean-A100 clean-H100 clean-4090 clean-result
+test-5090: test-5090-binary16 test-5090-bf16 test-5090-binary64 test-5090-tf32 test-5090-binary16-details
+
+test-5090-binary16: tc_test_numerics-T4-A100-binary16.cu
+	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
+
+test-5090-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
+	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
+
+test-5090-%: tc_test_numerics-A100-%.cu
+	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
+
+clean: clean-V100 clean-T4 clean-A100 clean-H100 clean-4090 clean-5090 clean-result
 
 clean-V100:
 	rm -f test-V100
@@ -57,6 +68,9 @@ clean-H100:
 
 clean-4090:
 	rm -f test-4090-*
+
+clean-5090:
+	rm -f test-5090-*
 
 clean-result:
 	rm -f result-*

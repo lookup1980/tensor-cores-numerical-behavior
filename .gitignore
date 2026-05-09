@@ -1,0 +1,37 @@
+# Root build products produced by the Makefile.
+/test-*
+
+# Root result files produced by run_tests.py.
+# Archived result directories such as 3080/, 4090/, 5090/, and A10/ are tracked data.
+/result-*.txt
+
+# CUDA and native build intermediates.
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.cubin
+*.fatbin
+*.ptx
+*.sass
+*.nsys-rep
+*.qdrep
+*.nvvp
+
+# Python cache files.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local editor and OS metadata.
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.vscode/
+.idea/

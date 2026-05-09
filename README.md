@@ -32,6 +32,7 @@ The experiments can be compiled by issuing `make all`, which generates several e
 * `test-V100`, for testing Volta GPUs (requires version 9 or newer of the CUDA platform);
 * `test-T4`, for testing Turing GPUs (requires version 10 or newer of the CUDA platform);
 * `test-A100-binary16`, `test-A100-bf16`, `test-A100-tf32`, `test-A100-binary64`, for testing the four precision configurations available on Ampere GPUs (requires version 11 or newer of the CUDA platform).
+* `test-H100-*`, `test-4090-*`, and `test-5090-*`, for testing the corresponding Hopper, Ada, and Blackwell-generation targets configured in the `Makefile`.
 
 ### Reference
 Details about the code in this repository can be found in:
