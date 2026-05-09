@@ -37,6 +37,7 @@ remain available when the local `nvcc` supports their `sm_` architecture:
 * `test-A100-binary16`, `test-A100-bf16`, `test-A100-tf32`, `test-A100-binary64`, for testing the four precision configurations available on Ampere GPUs (requires version 11 or newer of the CUDA platform).
 * `test-H100-*`, `test-4090-*`, and `test-5090-*`, for testing the corresponding Hopper, Ada, and Blackwell-generation targets configured in the `Makefile`.
 * `test-5090-fp8`, `test-5090-fp6`, and `test-5090-fp4`, for probing CUDA 13.2 low-precision type and conversion support on `sm_120`. These are format availability probes, not WMMA numerical-behavior tests.
+* `test-5090-fp8-reduction-width`, `test-5090-fp6-reduction-width`, and `test-5090-fp4-reduction-width`, for probing RTX 5090 low-precision tensor-core reduction width with direct PTX `mma.sync.aligned` instructions. These targets use `compute_120a`/`sm_120a` because FP6/FP4 `.kind::f8f6f4` PTX requires the SM120 accelerated feature target.
 
 Result files can be generated with `run_tests.py`. With no selectors, it runs
 all executable `test-*` binaries in the repository root. Selectors can limit the

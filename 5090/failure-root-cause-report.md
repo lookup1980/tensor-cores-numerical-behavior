@@ -52,6 +52,18 @@ These probes confirm CUDA type/conversion availability and device execution for
 current CUDA 13.2 `mma.h` interface used by this suite does not expose matching
 fp8/fp6/fp4 WMMA fragments.
 
+The direct PTX low-precision reduction-width probes also pass:
+
+| Test | Scope |
+| --- | --- |
+| `test-5090-fp8-reduction-width` | Direct PTX FP8 `mma.sync.aligned.m16n8k32` |
+| `test-5090-fp6-reduction-width` | Direct PTX FP6 `.kind::f8f6f4` `mma.sync.aligned.m16n8k32` |
+| `test-5090-fp4-reduction-width` | Direct PTX FP4 E2M1 `.kind::f8f6f4` `mma.sync.aligned.m16n8k32` |
+
+Those probes observe a 21-bit effective reduction/addition width for the tested
+FP8, FP6, and FP4 tensor-core MMA paths. Details are in
+`5090/lowp-reduction-width-report.md`.
+
 ## Tensor-Core Instructions
 
 `cuobjdump --dump-sass` confirms that the failing tests use SM120 HMMA
