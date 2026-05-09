@@ -264,9 +264,10 @@ int main(int argc, char** argv){
   }
   for (j=0; j<4; j++) {
     h_c[0] = ldexp(1, -24);
-    if (j>0)
+    if (j>0) {
       h_a[j-1] = 0.5;
-    h_b[j-1] = __float2bfloat16(ldexp(1, -24));
+      h_b[j-1] = __float2bfloat16(ldexp(1, -24));
+    }
     h_a[j] = one16;
     h_b[j] = one16;
     wmma_init_run (h_a, h_b, h_c, d16_a, d16_b, d_c, false);

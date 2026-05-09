@@ -231,9 +231,10 @@ int main(int argc, char** argv){
   }
   for (j=0; j<4; j++) {
     h_c[0] = ldexp(1, -24);
-    if (j>0)
+    if (j>0) {
       h_a[j-1] = 0.5;
-    h_b[j-1] = ldexp(1, -24);
+      h_b[j-1] = ldexp(1, -24);
+    }
     h_a[j] = 1.0;
     h_b[j] = 1.0;
     wmma_init_run (h_a, h_b, h_c, d_a, d_b, d_c, false);
