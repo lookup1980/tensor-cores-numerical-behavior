@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <cstdint>
 #include <chrono>
-#include <iostream>
 #include <mma.h>
 #include <iomanip>
 #include "include/tcnb_cuda_check.cuh"
@@ -26,34 +25,6 @@
 #include "include/tcnb_device_tile.cuh"
 
 using namespace nvcuda;
-
-/*******************
- * Debug functions *
- *******************/
-/* Print the elements of the m x n matrix A. The elements are assumed to be
-   stored by columns if `bycols` is `true` and by rows if `bycols` is false. */
-template <typename floattype>
-void print_matrix (half *a,
-                   size_t m, size_t n,
-                   bool bycols) {
-  int i, j;
-  if (bycols) {
-    for (i=0; i<m; i++) {
-      for (j=0; j<n; j++)
-        std::cout << __half2float(a[j*n+i]) << " ";
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-  } else {
-    for (i=0; i<m; i++ ) {
-      for (j=0; j<n; j++)
-        std::cout << __half2float(a[i*m+j]) << " ";
-      std::cout  << std::endl;
-    }
-    std::cout << std::endl;
-   }
-}
-
 
 /****************************************************
  * Memory management and wmma::mma_sync() interface *
