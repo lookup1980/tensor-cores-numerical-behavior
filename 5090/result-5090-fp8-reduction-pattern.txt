@@ -1,0 +1,99 @@
++--------------------------------------------------------------+
+| A. 5090 direct-PTX low-precision product-pattern probe       |
++--------------------------------------------------------------+
+  | Probe: A*B M - M + epsilon                                 |
+  | Method: independent product terms                          |
+  | Notes: A and B both provide range                          |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   Pattern: A*B product M - M + epsilon                     |
+  |   +M            A0.byte0 * B0.byte0, weight 4            |
+  |   -M            A0.byte1 * B0.byte1, weight 4            |
+  |   epsilon       A0.byte2 * B0.byte2, weight 4            |
+  |   tested product-exponent pairs: 666                |
+  |   survived pairs: 612                                 |
+  |   max product: 200704                                 |
+  |   min product: 3.81469727e-06                         |
+  |   extreme product width: 36                        |
+  |   extreme survived: no                             |
+  |   extreme observed: 0                              |
+  |   extreme expected: 1.52587891e-05                 |
+  |   max tested effective width: 36                     |
+  |   max effective width: 27                            |
+  |   width is format-limited: no                       |
+  |   best product M exponent: 17                        |
+  |   best product eps exponent: -9                      |
+  |   observed at max width: 0.0078125                   |
+  |   expected at max width: 0.0153808594                |
+  | *) Direct PTX product-pattern probe executed      [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   Pattern: A*B product M - M + epsilon                     |
+  |   +M            A0.byte0 * B0.byte0, weight 4            |
+  |   -M            A0.byte1 * B0.byte1, weight 4            |
+  |   epsilon       A0.byte2 * B0.byte2, weight 4            |
+  |   tested product-exponent pairs: 2080               |
+  |   survived pairs: 1332                                |
+  |   max product: 3.28833434e+09                         |
+  |   min product: 2.32830644e-10                         |
+  |   extreme product width: 64                        |
+  |   extreme survived: no                             |
+  |   extreme observed: 0                              |
+  |   extreme expected: 9.31322575e-10                 |
+  |   max tested effective width: 64                     |
+  |   max effective width: 27                            |
+  |   width is format-limited: no                       |
+  |   best product M exponent: 31                        |
+  |   best product eps exponent: 5                       |
+  |   observed at max width: 128                         |
+  |   expected at max width: 240                         |
+  | *) Direct PTX product-pattern probe executed      [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   Pattern: A*B product M - M + epsilon                     |
+  |   +M            A0.byte0 * B0.byte0, weight 4            |
+  |   -M            A0.byte1 * B0.byte1, weight 4            |
+  |   epsilon       A0.byte2 * B0.byte2, weight 4            |
+  |   tested product-exponent pairs: 1275               |
+  |   survived pairs: 976                                 |
+  |   max product: 25690112                               |
+  |   min product: 2.98023224e-08                         |
+  |   extreme product width: 50                        |
+  |   extreme survived: no                             |
+  |   extreme observed: 0                              |
+  |   extreme expected: 1.1920929e-07                  |
+  |   max tested effective width: 50                     |
+  |   max effective width: 27                            |
+  |   width is format-limited: no                       |
+  |   best product M exponent: 24                        |
+  |   best product eps exponent: -2                      |
+  |   observed at max width: 1                           |
+  |   expected at max width: 1.96875                     |
+  | *) Direct PTX product-pattern probe executed      [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   Pattern: A*B product M - M + epsilon                     |
+  |   +M            A0.byte0 * B0.byte0, weight 4            |
+  |   -M            A0.byte1 * B0.byte1, weight 4            |
+  |   epsilon       A0.byte2 * B0.byte2, weight 4            |
+  |   tested product-exponent pairs: 1275               |
+  |   survived pairs: 976                                 |
+  |   max product: 25690112                               |
+  |   min product: 2.98023224e-08                         |
+  |   extreme product width: 50                        |
+  |   extreme survived: no                             |
+  |   extreme observed: 0                              |
+  |   extreme expected: 1.1920929e-07                  |
+  |   max tested effective width: 50                     |
+  |   max effective width: 27                            |
+  |   width is format-limited: no                       |
+  |   best product M exponent: 24                        |
+  |   best product eps exponent: -2                      |
+  |   observed at max width: 1                           |
+  |   expected at max width: 1.96875                     |
+  | *) Direct PTX product-pattern probe executed      [PASS] |
+  +----------------------------------------------------------+

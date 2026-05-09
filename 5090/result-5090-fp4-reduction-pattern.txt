@@ -1,0 +1,30 @@
++--------------------------------------------------------------+
+| A. 5090 direct-PTX low-precision product-pattern probe       |
++--------------------------------------------------------------+
+  | Probe: A*B M - M + epsilon                                 |
+  | Method: independent product terms                          |
+  | Notes: A and B both provide range                          |
+  | FP4 E2M1 x E2M1                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32 |
+  |   K per instruction: 32                                  |
+  |   Pattern: A*B product M - M + epsilon                     |
+  |   +M            A0.byte0 * B0.byte0, weight 4            |
+  |   -M            A0.byte1 * B0.byte1, weight 4            |
+  |   epsilon       A0.byte2 * B0.byte2, weight 4            |
+  |   tested product-exponent pairs: 36                 |
+  |   survived pairs: 36                                  |
+  |   max product: 36                                     |
+  |   min product: 0.25                                   |
+  |   extreme product width: 8                         |
+  |   extreme survived: yes                            |
+  |   extreme observed: 1                              |
+  |   extreme expected: 1                              |
+  |   max tested effective width: 8                      |
+  |   max effective width: 8                             |
+  |   width is format-limited: yes                      |
+  |   best product M exponent: 5                         |
+  |   best product eps exponent: -2                      |
+  |   observed at max width: 1                           |
+  |   expected at max width: 1                           |
+  | *) Direct PTX product-pattern probe executed      [PASS] |
+  +----------------------------------------------------------+

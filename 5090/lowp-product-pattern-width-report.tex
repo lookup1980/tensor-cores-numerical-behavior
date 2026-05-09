@@ -1,0 +1,331 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{microtype}
+
+\definecolor{accent}{HTML}{0B6E69}
+\definecolor{accentdark}{HTML}{084C49}
+\definecolor{muted}{HTML}{5B6770}
+\definecolor{soft}{HTML}{F2F7F6}
+\definecolor{line}{HTML}{C9D8D5}
+\definecolor{codebg}{HTML}{F7F9FA}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accentdark,
+  urlcolor=accentdark,
+  citecolor=accentdark,
+  pdftitle={RTX 5090 Low-Precision Product-Pattern Width Report},
+  pdfauthor={tensor-cores-numerical-behavior}
+}
+
+\titleformat{\section}
+  {\Large\bfseries\color{accentdark}}
+  {\thesection}{0.55em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{accentdark}}
+  {\thesubsection}{0.55em}{}
+\titlespacing*{\section}{0pt}{1.2em}{0.5em}
+\titlespacing*{\subsection}{0pt}{0.85em}{0.3em}
+
+\setlist[itemize]{leftmargin=1.2em, itemsep=0.2em, topsep=0.25em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\renewcommand{\arraystretch}{1.18}
+
+\lstdefinestyle{reportcode}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{line},
+  framerule=0.5pt,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2
+}
+\lstset{style=reportcode}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}p{0.78in}}
+\newcolumntype{C}{>{\centering\arraybackslash}p{0.82in}}
+
+\newtcolorbox{summarybox}{
+  enhanced,
+  colback=soft,
+  colframe=accent,
+  boxrule=0.7pt,
+  arc=2mm,
+  left=8pt,
+  right=8pt,
+  top=8pt,
+  bottom=8pt
+}
+
+\begin{document}
+\pagenumbering{gobble}
+
+\begin{titlepage}
+\vspace*{0.3in}
+{\Huge\bfseries\color{accentdark} RTX 5090 Low-Precision\\ Product-Pattern Width Report\par}
+\vspace{0.18in}
+{\Large Direct PTX \texttt{M - M + epsilon} product probes\par}
+\vspace{0.22in}
+{\color{muted}Date: 2026-05-09\par}
+\vfill
+\begin{summarybox}
+\textbf{Headline finding.}
+The earlier A-only pattern understated FP8 E4M3 range. With independent
+\texttt{A*B} products, FP8 E4M3 x E4M3 reaches an extreme test width of
+\textbf{36 bits}. That extreme case does not survive, and product-exponent
+scanning finds \textbf{27 effective bits} for all tested FP8 variants. FP6 and
+FP4 remain format-limited in this product-pattern probe.
+\end{summarybox}
+\vspace{0.22in}
+\begin{tabularx}{\linewidth}{>{\bfseries}l Y}
+\toprule
+GPU & NVIDIA GeForce RTX 5090, compute capability 12.0 \\
+Build target & \texttt{compute\_120a} / \texttt{sm\_120a} \\
+Source & \path{src/tc_test_numerics-5090-lowp-reduction-pattern.cu} \\
+Result files & \path{5090/result-5090-fp8-reduction-pattern.txt},
+\path{5090/result-5090-fp6-reduction-pattern.txt},
+\path{5090/result-5090-fp4-reduction-pattern.txt} \\
+\bottomrule
+\end{tabularx}
+\end{titlepage}
+\clearpage
+\pagenumbering{arabic}
+
+\section{Scope}
+
+This report covers the standalone product-pattern probe listed on the title
+page. It is separate from the accumulator-boundary and repeated-MMA probes. The
+test uses direct inline PTX \texttt{mma.sync.aligned} instructions and does not
+call cuBLASLt.
+
+The probe reports externally visible behavior for selected product positions.
+It does not claim to reconstruct the physical tensor-core reduction tree.
+
+\section{Method}
+
+The test maps independent product terms for output register \texttt{D0}. The
+selected terms are:
+
+\begin{tabularx}{\linewidth}{l Y R}
+\toprule
+Role & Position & Weight in D0 \\
+\midrule
+\texttt{+M} & \texttt{A0.byte0 * B0.byte0} & 4 \\
+\texttt{-M} & \texttt{A0.byte1 * B0.byte1} & 4 \\
+\texttt{epsilon} & \texttt{A0.byte2 * B0.byte2} & 4 \\
+\bottomrule
+\end{tabularx}
+
+The cross terms among those positions are checked to be absent for
+\texttt{D0}, so the pattern isolates three product contributions:
+
+\[
+  D0 = 4M - 4M + 4\epsilon
+\]
+
+The test enumerates every positive finite raw value in the A format and every
+positive finite raw value in the B format. It forms all positive products,
+groups them by product exponent, and scans exponent gaps:
+
+\begin{summarybox}
+\[
+  effective\ width = exponent(M) - exponent(\epsilon) + 1
+\]
+\end{summarybox}
+
+A case counts as retained when:
+
+\begin{lstlisting}
+observed > 0
+abs(observed - expected) <= 0.5 * abs(expected)
+\end{lstlisting}
+
+The 50\% tolerance is intentional. This pattern detects whether the small term
+is still visible after cancellation. It does not require exact arithmetic on
+the retained term, so borderline FP8 cases are reported explicitly.
+
+\section{Results}
+
+\begin{tabularx}{\linewidth}{l Y R C R C}
+\toprule
+Family & Variant & Extreme width & Extreme survived & Max effective width & Format-limited \\
+\midrule
+FP8 & E4M3 x E4M3 & 36 & no & 27 & no \\
+FP8 & E5M2 x E5M2 & 64 & no & 27 & no \\
+FP8 & E4M3 x E5M2 & 50 & no & 27 & no \\
+FP8 & E5M2 x E4M3 & 50 & no & 27 & no \\
+FP6 & E2M3 x E2M3 & 12 & yes & 12 & yes \\
+FP6 & E3M2 x E3M2 & 18 & yes & 18 & yes \\
+FP4 & E2M1 x E2M1 & 8 & yes & 8 & yes \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Product Range}
+
+\begin{tabularx}{\linewidth}{Y R R R R}
+\toprule
+Variant & Tested pairs & Survived & Max product & Min product \\
+\midrule
+FP8 E4M3 x E4M3 & 666 & 612 & 200704 & 3.8147e-06 \\
+FP8 E5M2 x E5M2 & 2080 & 1332 & 3.2883e+09 & 2.3283e-10 \\
+FP8 E4M3 x E5M2 & 1275 & 976 & 25690112 & 2.9802e-08 \\
+FP8 E5M2 x E4M3 & 1275 & 976 & 25690112 & 2.9802e-08 \\
+FP6 E2M3 x E2M3 & 78 & 78 & 56.25 & 0.015625 \\
+FP6 E3M2 x E3M2 & 171 & 171 & 784 & 0.00390625 \\
+FP4 E2M1 x E2M1 & 36 & 36 & 36 & 0.25 \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Extreme Cases}
+
+\begin{tabularx}{\linewidth}{Y R R R C}
+\toprule
+Variant & Width & Observed & Expected & Survived \\
+\midrule
+FP8 E4M3 x E4M3 & 36 & 0 & 1.5259e-05 & no \\
+FP8 E5M2 x E5M2 & 64 & 0 & 9.3132e-10 & no \\
+FP8 E4M3 x E5M2 & 50 & 0 & 1.1921e-07 & no \\
+FP8 E5M2 x E4M3 & 50 & 0 & 1.1921e-07 & no \\
+FP6 E2M3 x E2M3 & 12 & 0.0625 & 0.0625 & yes \\
+FP6 E3M2 x E3M2 & 18 & 0.015625 & 0.015625 & yes \\
+FP4 E2M1 x E2M1 & 8 & 1 & 1 & yes \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Max-Width Retained Cases}
+
+\begin{tabularx}{\linewidth}{Y R R R R R}
+\toprule
+Variant & Width & M exp & Eps exp & Observed & Expected \\
+\midrule
+FP8 E4M3 x E4M3 & 27 & 17 & -9 & 0.0078125 & 0.0153809 \\
+FP8 E5M2 x E5M2 & 27 & 31 & 5 & 128 & 240 \\
+FP8 E4M3 x E5M2 & 27 & 24 & -2 & 1 & 1.96875 \\
+FP8 E5M2 x E4M3 & 27 & 24 & -2 & 1 & 1.96875 \\
+FP6 E2M3 x E2M3 & 12 & 5 & -6 & 0.0625 & 0.0625 \\
+FP6 E3M2 x E3M2 & 18 & 9 & -8 & 0.015625 & 0.015625 \\
+FP4 E2M1 x E2M1 & 8 & 5 & -2 & 1 & 1 \\
+\bottomrule
+\end{tabularx}
+
+The FP8 max-width retained cases are edge cases. The observed value is roughly
+half of the expected epsilon contribution, but remains positive and within the
+retention tolerance. Therefore, \textbf{27 bits} means the widest detectable
+retained epsilon under this criterion, not exact 27-bit arithmetic.
+
+\section{Format Analysis}
+
+\subsection{FP8 E4M3 x E4M3}
+
+The earlier A-only pattern understated the available range. With A and B both
+participating:
+
+\begin{lstlisting}
+max product = 200704
+min product = 3.81469727e-06
+product exponent gap = 17 - (-18) + 1 = 36
+\end{lstlisting}
+
+The extreme case is lost. The widest retained case is 27 bits, with
+\(M\) at exponent 17 and \(\epsilon\) at exponent -9. This is not
+format-limited.
+
+\subsection{FP8 E5M2 x E5M2}
+
+E5M2 has a wider exponent range than E4M3, so the extreme product width reaches
+64 bits. The extreme case is lost, and the widest retained case is again 27
+bits. More representable product range does not increase the observed retained
+width for this pattern.
+
+\subsection{FP8 Mixed E4M3/E5M2}
+
+Both mixed variants reach an extreme width of 50 bits and a max effective width
+of 27 bits. The two directions match in this selected layout, but that should
+not be generalized to every possible operand placement or output lane without
+additional layout sweeps.
+
+\subsection{FP6 E2M3 x E2M3}
+
+The entire tested product range is 12 bits, and the extreme case survives
+exactly. This result is format-limited: it proves the tested path preserves the
+full E2M3 product range used here, but it does not prove the internal retention
+width is only 12 bits.
+
+\subsection{FP6 E3M2 x E3M2}
+
+The tested range expands to 18 bits because E3M2 has more exponent range than
+E2M3. The extreme case survives exactly, so this is also format-limited. The
+test does not find a failing FP6 E3M2 product-pattern case.
+
+\subsection{FP4 E2M1 x E2M1}
+
+The tested product range is 8 bits. The extreme case survives exactly. This is
+strong evidence that the tested path can retain every product gap expressible
+by FP4 E2M1 in this layout, but it cannot bound a wider internal tree because
+the format cannot generate a wider product gap.
+
+\section{Edge Cases and Limitations}
+
+\begin{itemize}
+\item The result is layout-sensitive. Other positions, lanes, or output
+  registers may have different association behavior.
+\item FP8's 27-bit retained cases pass because epsilon remains visible and
+  within the 50\% retention tolerance, not because the result equals the
+  expected value.
+\item FP6 and FP4 are format-limited in this test. Their max effective width is
+  the largest width generated by the product format here.
+\item The grouping key is product exponent. Products in the same exponent
+  bucket can have different significands.
+\item This test covers direct \texttt{mma.sync.aligned.m16n8k32} PTX and one
+  selected output register. It does not cover block-scaled MXFP instructions
+  or full GEMM accuracy.
+\end{itemize}
+
+\section{Verification}
+
+\begin{lstlisting}[language=bash]
+make -B test-5090-fp8-reduction-pattern \
+        test-5090-fp6-reduction-pattern \
+        test-5090-fp4-reduction-pattern
+
+python3 run_tests.py -o 5090 \
+        5090-fp8-reduction-pattern \
+        5090-fp6-reduction-pattern \
+        5090-fp4-reduction-pattern
+
+compute-sanitizer --tool memcheck ./test-5090-fp8-reduction-pattern
+compute-sanitizer --tool memcheck ./test-5090-fp6-reduction-pattern
+compute-sanitizer --tool memcheck ./test-5090-fp4-reduction-pattern
+\end{lstlisting}
+
+The generated SASS contains direct \texttt{QMMA.16832} instructions:
+
+\begin{tabularx}{\linewidth}{l Y}
+\toprule
+Target & Confirmed instruction family \\
+\midrule
+\texttt{test-5090-fp8-reduction-pattern} & \texttt{QMMA.16832.F32.E4M3/E5M2} \\
+\texttt{test-5090-fp6-reduction-pattern} & \texttt{QMMA.16832.F32.E2M3/E3M2} \\
+\texttt{test-5090-fp4-reduction-pattern} & \texttt{QMMA.16832.F32.E2M1} \\
+\bottomrule
+\end{tabularx}
+
+\end{document}
