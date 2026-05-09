@@ -23,6 +23,7 @@
 #include <iomanip>
 #include <cuda_bf16.h>
 #include "include/tcnb_output.hpp"
+#include "include/tcnb_cuda_check.cuh"
 
 using namespace nvcuda;
 
@@ -94,16 +95,6 @@ __global__ void wmma_ker(nv_bfloat16 *a, nv_bfloat16 *b,
   wmma::store_matrix_sync(c, c_fragment, 16, wmma::mem_col_major);
 }
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-   if (code != cudaSuccess) 
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
 /* Copy data from host to device, perform the operation, and copy result back to
    host. */
 template <typename returntype>
@@ -111,24 +102,24 @@ void wmma_init_run (nv_bfloat16 *h_a, nv_bfloat16 *h_b, returntype *h_c,
                     nv_bfloat16 *d_a, nv_bfloat16 *d_b, returntype *d_c,
                     bool init) {
   
-  gpuErrchk( (cudaGetLastError()) );
+  TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy input from host to device.
-  cudaMemcpy(d_a, h_a, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_b, h_b, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_c, h_c, 16*16*sizeof(returntype), cudaMemcpyHostToDevice);
+  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, 16*16*sizeof(returntype), cudaMemcpyHostToDevice));
 
-  gpuErrchk( (cudaGetLastError()) );
+  TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
 
-  gpuErrchk( (cudaGetLastError()) );
+  TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost);
+  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost));
 
-  gpuErrchk( (cudaGetLastError()) );
+  TCNB_CUDA_CHECK(cudaGetLastError());
 }
 
 
@@ -161,10 +152,10 @@ int main(int argc, char** argv){
   h_c = new float[16*16];
   h16_c = new nv_bfloat16[16*16];
 
-  cudaMalloc(&d16_a, 16*16*sizeof(nv_bfloat16));
-  cudaMalloc(&d16_b, 16*16*sizeof(nv_bfloat16));
-  cudaMalloc(&d16_c, 16*16*sizeof(nv_bfloat16));
-  cudaMalloc(&d_c, 16*16*sizeof(float));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, 16*16*sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, 16*16*sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, 16*16*sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
 
   FILE *outfile = stdout;
   bool pass;

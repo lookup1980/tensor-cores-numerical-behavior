@@ -22,6 +22,7 @@
 #include <mma.h>
 #include <iomanip>
 #include "include/tcnb_output.hpp"
+#include "include/tcnb_cuda_check.cuh"
 
 using namespace nvcuda;
 
@@ -97,15 +98,16 @@ void wmma_init_run (float *h_a, float *h_b, float *h_c,
                     bool init) {
 
   // Copy input from host to device.
-  cudaMemcpy(d_a, h_a, 16*16*sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_b, h_b, 16*16*sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_c, h_c, 16*16*sizeof(float), cudaMemcpyHostToDevice);
+  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, 16*16*sizeof(float), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, 16*16*sizeof(float), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, 16*16*sizeof(float), cudaMemcpyHostToDevice));
 
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
+  TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  cudaMemcpy(h_c, d_c, 16*16*sizeof(float), cudaMemcpyDeviceToHost);
+  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, 16*16*sizeof(float), cudaMemcpyDeviceToHost));
 }
 
 
@@ -130,9 +132,9 @@ int main(int argc, char** argv){
   h_b = new float[16*16];
   h_c = new float[16*16];
  
-  cudaMalloc(&d_a, 16*16*sizeof(float));
-  cudaMalloc(&d_b, 16*16*sizeof(float));
-  cudaMalloc(&d_c, 16*16*sizeof(float));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_a, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_b, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
 
   FILE *outfile = stdout;
   bool pass;
