@@ -1,0 +1,10 @@
++--------------------------------------------------------------+
+| A. 5090 low-precision format support                         |
++--------------------------------------------------------------+
+  | *) Device compute capability is at least 12.0     [PASS] |
+  | *) FP6 E2M3 host scalar/vector conversions        [PASS] |
+  | *) FP6 E2M3 device scalar/vector conversions      [PASS] |
+  | *) FP6 E3M2 host scalar/vector conversions        [PASS] |
+  | *) FP6 E3M2 device scalar/vector conversions      [PASS] |
+  +----------------------------------------------------------+
+
