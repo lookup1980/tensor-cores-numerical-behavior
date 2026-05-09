@@ -12,11 +12,11 @@ A. Support for subnormal numbers
 B. Accuracy of the dot products
 * Tensor cores compute the products of two binary16 numbers exactly
 * Tensor cores compute the products of two binary16 numbers exactly (binary16 mode)
-* Tensor cores accumulate sums in binary32 arithemetic
+* Tensor cores accumulate sums in binary32 arithmetic
 * Tensor cores accumulate partial sums on the largest element in absolute value
 
 C. Rounding modes in tensor core computations
-* Tensor cores use round-down for postive values
+* Tensor cores use round-down for positive values
 * Tensor cores use round-up for negative values
 * Tensor cores round the accumulator using round-to-nearest (binary16 mode)
 
@@ -36,6 +36,25 @@ remain available when the local `nvcc` supports their `sm_` architecture:
 * `test-T4`, for testing Turing GPUs (requires version 10 or newer of the CUDA platform);
 * `test-A100-binary16`, `test-A100-bf16`, `test-A100-tf32`, `test-A100-binary64`, for testing the four precision configurations available on Ampere GPUs (requires version 11 or newer of the CUDA platform).
 * `test-H100-*`, `test-4090-*`, and `test-5090-*`, for testing the corresponding Hopper, Ada, and Blackwell-generation targets configured in the `Makefile`.
+
+Result files can be generated with `run_tests.py`. With no selectors, it runs
+all executable `test-*` binaries in the repository root. Selectors can limit the
+run to one GPU target or one binary:
+
+```
+python3 run_tests.py 5090 -o 5090
+python3 run_tests.py 5090-bf16 -o 5090
+```
+
+### Extending the suite
+The build configuration is organized around target GPUs and data formats:
+
+* Add a new target GPU by defining `GPU_SM_<name>` in the `Makefile` and adding
+  the target name to `FORMAT_GPUS`.
+* Add a new data format by defining a source variable, adding the format name
+  to `FORMAT_TARGETS`, and adding a matching `test-%-<format>` rule.
+* Shared output, CUDA error handling, tile sizing, and device tile allocation
+  live under `include/` so new format tests can reuse the same runtime helpers.
 
 ### Reference
 Details about the code in this repository can be found in:
