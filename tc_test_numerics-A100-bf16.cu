@@ -22,6 +22,7 @@
 #include <mma.h>
 #include <iomanip>
 #include <cuda_bf16.h>
+#include "include/tcnb_output.hpp"
 
 using namespace nvcuda;
 
@@ -128,32 +129,6 @@ void wmma_init_run (nv_bfloat16 *h_a, nv_bfloat16 *h_b, returntype *h_c,
   cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost);
 
   gpuErrchk( (cudaGetLastError()) );
-}
-
-
-/**********************
- * Printing functions *
- **********************/
-void printheader(FILE *outfile, const char *string) {
-  fprintf(outfile,
-          "+--------------------------------------------------------------+\n");
-  fprintf(outfile, "| %-60s |\n", string);
-  fprintf(outfile,
-          "+--------------------------------------------------------------+\n");
-}
-void printitem(FILE *outfile, const char *string) {
-  fprintf(outfile, "  | %-49s", string);
-}
-
-void printpass(FILE *outfile, bool status) {
-  if (status)
-    fprintf(outfile, " [PASS] |\n");
-  else
-    fprintf(outfile, " [FAIL] |\n");
-}
-void printfooter(FILE *outfile) {
-  fprintf(outfile,
-          "  +----------------------------------------------------------+\n\n");
 }
 
 

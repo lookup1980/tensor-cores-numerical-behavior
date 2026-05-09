@@ -21,6 +21,7 @@
 #include <iostream>
 #include <mma.h>
 #include <iomanip>
+#include "include/tcnb_output.hpp"
 
 using namespace nvcuda;
 
@@ -105,32 +106,6 @@ void wmma_init_run (float *h_a, float *h_b, float *h_c,
 
   // Copy result from device to host.
   cudaMemcpy(h_c, d_c, 16*16*sizeof(float), cudaMemcpyDeviceToHost);
-}
-
-
-/**********************
- * Printing functions *
- **********************/
-void printheader(FILE *outfile, const char *string) {
-  fprintf(outfile,
-          "+--------------------------------------------------------------+\n");
-  fprintf(outfile, "| %-60s |\n", string);
-  fprintf(outfile,
-          "+--------------------------------------------------------------+\n");
-}
-void printitem(FILE *outfile, const char *string) {
-  fprintf(outfile, "  | %-49s", string);
-}
-
-void printpass(FILE *outfile, bool status) {
-  if (status)
-    fprintf(outfile, " [PASS] |\n");
-  else
-    fprintf(outfile, " [FAIL] |\n");
-}
-void printfooter(FILE *outfile) {
-  fprintf(outfile,
-          "  +----------------------------------------------------------+\n\n");
 }
 
 
