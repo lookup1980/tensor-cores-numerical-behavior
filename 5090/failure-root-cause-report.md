@@ -147,8 +147,8 @@ host-side setup bug: missing braces caused `h_b[j-1]` to be written when
 
 That issue was fixed in:
 
-- `tc_test_numerics-A100-bf16.cu`
-- `tc_test_numerics-A100-tf32.cu`
+- `src/tc_test_numerics-A100-bf16.cu`
+- `src/tc_test_numerics-A100-tf32.cu`
 
 After the fix, `compute-sanitizer` reports zero device errors, and the tests run
 to normal process exit. The remaining failures are the SM120 numerical behavior

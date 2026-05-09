@@ -51,8 +51,9 @@ The build configuration is organized around target GPUs and data formats:
 
 * Add a new target GPU by defining `GPU_SM_<name>` in the `Makefile` and adding
   the target name to `FORMAT_GPUS`.
-* Add a new data format by defining a source variable, adding the format name
-  to `FORMAT_TARGETS`, and adding a matching `test-%-<format>` rule.
+* Add a new data format by adding its CUDA source under `src/`, defining a
+  source variable, adding the format name to `FORMAT_TARGETS`, and adding a
+  matching `test-%-<format>` rule.
 * Shared output, CUDA error handling, tile sizing, and device tile allocation
   live under `include/` so new format tests can reuse the same runtime helpers.
 
