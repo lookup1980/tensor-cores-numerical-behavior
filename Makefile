@@ -12,6 +12,8 @@ GPU_SM_A100 = sm_80
 GPU_SM_H100 = sm_90
 GPU_SM_4090 = sm_89
 GPU_SM_5090 = sm_120
+GPU_COMPUTE_5090_ACCEL = compute_120a
+GPU_SM_5090_ACCEL = sm_120a
 
 BASE_FORMAT_TARGETS = binary16 bf16 binary64 tf32 binary16-details
 EXTRA_FORMAT_TARGETS_A100 =
@@ -81,13 +83,13 @@ test-5090-fp4: $(SRC_5090_LOW_PRECISION)
 	$(NVCC) $(NVCC_INCLUDES) -DTCNB_LOW_PRECISION_FP4 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $<
 
 test-5090-fp8-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
-	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP8 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP8 -o $@ -arch=$(GPU_COMPUTE_5090_ACCEL) -code=$(GPU_SM_5090_ACCEL) $(NVCC_STD) $<
 
 test-5090-fp6-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
-	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP6 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP6 -o $@ -arch=$(GPU_COMPUTE_5090_ACCEL) -code=$(GPU_SM_5090_ACCEL) $(NVCC_STD) $<
 
 test-5090-fp4-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
-	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP4 -o $@ -arch=$(GPU_SM_5090) $(NVCC_STD) $< -lcublasLt -lcublas
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP4 -o $@ -arch=$(GPU_COMPUTE_5090_ACCEL) -code=$(GPU_SM_5090_ACCEL) $(NVCC_STD) $<
 
 clean: $(addprefix clean-,$(GPU_TARGETS)) clean-result
 

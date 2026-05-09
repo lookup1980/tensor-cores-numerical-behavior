@@ -6,359 +6,316 @@
  * Foundation, version 2.
  */
 
-#include <cublasLt.h>
 #include <cuda_fp4.h>
 #include <cuda_fp6.h>
 #include <cuda_fp8.h>
+#include <cuda_runtime.h>
+
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <vector>
+#include <limits>
 
 #include "include/tcnb_cuda_check.cuh"
 #include "include/tcnb_output.hpp"
 
-#define TCNB_CUBLAS_CHECK(expr) tcnb_check_cublas((expr), #expr, __FILE__, __LINE__)
+static const int kInstructionK = 32;
+static const int kLog2InstructionK = 5;
+static const int kMinShift = 16;
+static const int kMaxShift = 40;
+static const int kExpectedBinary32Bits = std::numeric_limits<float>::digits;
+static const int kExpectedBinary32MaxShift =
+    kLog2InstructionK + kExpectedBinary32Bits - 1;
 
-static const int kM = 16;
-static const int kN = 16;
-static const int kK = 1024;
-static const int kMinShift = 20;
-static const int kMaxShift = 48;
-
-static const char *cublas_status_name(cublasStatus_t status) {
-  switch (status) {
-  case CUBLAS_STATUS_SUCCESS:
-    return "CUBLAS_STATUS_SUCCESS";
-  case CUBLAS_STATUS_NOT_INITIALIZED:
-    return "CUBLAS_STATUS_NOT_INITIALIZED";
-  case CUBLAS_STATUS_ALLOC_FAILED:
-    return "CUBLAS_STATUS_ALLOC_FAILED";
-  case CUBLAS_STATUS_INVALID_VALUE:
-    return "CUBLAS_STATUS_INVALID_VALUE";
-  case CUBLAS_STATUS_ARCH_MISMATCH:
-    return "CUBLAS_STATUS_ARCH_MISMATCH";
-  case CUBLAS_STATUS_MAPPING_ERROR:
-    return "CUBLAS_STATUS_MAPPING_ERROR";
-  case CUBLAS_STATUS_EXECUTION_FAILED:
-    return "CUBLAS_STATUS_EXECUTION_FAILED";
-  case CUBLAS_STATUS_INTERNAL_ERROR:
-    return "CUBLAS_STATUS_INTERNAL_ERROR";
-  case CUBLAS_STATUS_NOT_SUPPORTED:
-    return "CUBLAS_STATUS_NOT_SUPPORTED";
-  case CUBLAS_STATUS_LICENSE_ERROR:
-    return "CUBLAS_STATUS_LICENSE_ERROR";
-  default:
-    return "CUBLAS_STATUS_UNKNOWN";
-  }
-}
-
-static void tcnb_check_cublas(cublasStatus_t status, const char *expr,
-                              const char *file, int line) {
-  if (status == CUBLAS_STATUS_SUCCESS)
-    return;
-
-  fprintf(stderr, "cuBLASLt error: %s failed with %s at %s:%d\n", expr,
-          cublas_status_name(status), file, line);
-  std::exit(static_cast<int>(status));
-}
-
-template <typename value_type> struct DeviceBuffer {
-  value_type *ptr;
-
-  DeviceBuffer() : ptr(nullptr) {}
-  ~DeviceBuffer() {
-    if (ptr != nullptr)
-      cudaFree(ptr);
-  }
-
-  DeviceBuffer(const DeviceBuffer &) = delete;
-  DeviceBuffer &operator=(const DeviceBuffer &) = delete;
-
-  void allocate(size_t count) {
-    TCNB_CUDA_CHECK(cudaMalloc(&ptr, count * sizeof(value_type)));
-  }
-
-  void copy_from_host(const std::vector<value_type> &host) {
-    allocate(host.size());
-    TCNB_CUDA_CHECK(cudaMemcpy(ptr, host.data(),
-                               host.size() * sizeof(value_type),
-                               cudaMemcpyHostToDevice));
-  }
+enum MmaVariant {
+  kFp8E4m3E4m3,
+  kFp8E5m2E5m2,
+  kFp8E4m3E5m2,
+  kFp8E5m2E4m3,
+  kFp6E2m3E2m3,
+  kFp6E3m2E3m2,
+  kFp4E2m1E2m1,
 };
-
-struct LtHandle {
-  cublasLtHandle_t value;
-
-  LtHandle() : value(nullptr) {}
-  ~LtHandle() {
-    if (value != nullptr)
-      cublasLtDestroy(value);
-  }
-
-  LtHandle(const LtHandle &) = delete;
-  LtHandle &operator=(const LtHandle &) = delete;
-};
-
-struct MatmulDesc {
-  cublasLtMatmulDesc_t value;
-
-  MatmulDesc() : value(nullptr) {}
-  ~MatmulDesc() {
-    if (value != nullptr)
-      cublasLtMatmulDescDestroy(value);
-  }
-
-  MatmulDesc(const MatmulDesc &) = delete;
-  MatmulDesc &operator=(const MatmulDesc &) = delete;
-};
-
-struct MatrixLayout {
-  cublasLtMatrixLayout_t value;
-
-  MatrixLayout() : value(nullptr) {}
-  ~MatrixLayout() {
-    if (value != nullptr)
-      cublasLtMatrixLayoutDestroy(value);
-  }
-
-  MatrixLayout(const MatrixLayout &) = delete;
-  MatrixLayout &operator=(const MatrixLayout &) = delete;
-};
-
-struct MatmulPreference {
-  cublasLtMatmulPreference_t value;
-
-  MatmulPreference() : value(nullptr) {}
-  ~MatmulPreference() {
-    if (value != nullptr)
-      cublasLtMatmulPreferenceDestroy(value);
-  }
-
-  MatmulPreference(const MatmulPreference &) = delete;
-  MatmulPreference &operator=(const MatmulPreference &) = delete;
-};
-
-static bool output_changed(float value) {
-  return value > 1.0f;
-}
 
 struct WidthResult {
-  bool supported;
-  bool tensor_op;
-  cublasStatus_t status;
+  bool executed;
   int max_changed_shift;
-  int exact_tree_expected_shift;
-  uint64_t numerical_flags;
-  float sample_value;
+  int observed_bits;
+  float sample_at_max;
+  float sample_after_max;
 };
 
-template <typename value_type>
-static cublasStatus_t run_once(cublasLtHandle_t handle, cudaDataType_t data_type,
-                               bool fast_accum, int shift, float *device_d,
-                               float *device_b_scale, float *host_sample,
-                               cublasLtNumericalImplFlags_t *flags_out) {
-  MatmulDesc op_desc;
-  MatrixLayout a_desc;
-  MatrixLayout b_desc;
-  MatrixLayout c_desc;
-  MatrixLayout d_desc;
-  MatmulPreference pref;
-
-  cublasStatus_t status =
-      cublasLtMatmulDescCreate(&op_desc.value, CUBLAS_COMPUTE_32F,
-                               CUDA_R_32F);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-
-  int8_t fast_accum_value = fast_accum ? 1 : 0;
-  status = cublasLtMatmulDescSetAttribute(
-      op_desc.value, CUBLASLT_MATMUL_DESC_FAST_ACCUM, &fast_accum_value,
-      sizeof(fast_accum_value));
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-
-  status = cublasLtMatmulDescSetAttribute(
-      op_desc.value, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER, &device_b_scale,
-      sizeof(device_b_scale));
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-
-  status = cublasLtMatrixLayoutCreate(&a_desc.value, data_type, kM, kK, kM);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-  status = cublasLtMatrixLayoutCreate(&b_desc.value, data_type, kK, kN, kK);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-  status = cublasLtMatrixLayoutCreate(&c_desc.value, CUDA_R_32F, kM, kN, kM);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-  status = cublasLtMatrixLayoutCreate(&d_desc.value, CUDA_R_32F, kM, kN, kM);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-  status = cublasLtMatmulPreferenceCreate(&pref.value);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-
-  size_t max_workspace = 64 * 1024 * 1024;
-  status = cublasLtMatmulPreferenceSetAttribute(
-      pref.value, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &max_workspace,
-      sizeof(max_workspace));
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-
-  std::vector<value_type> host_a(kM * kK, value_type(1.0f));
-  std::vector<value_type> host_b(kK * kN, value_type(1.0f));
-  std::vector<float> host_c(kM * kN, 1.0f);
-  DeviceBuffer<value_type> device_a;
-  DeviceBuffer<value_type> device_b;
-  DeviceBuffer<float> device_c;
-  device_a.copy_from_host(host_a);
-  device_b.copy_from_host(host_b);
-  device_c.copy_from_host(host_c);
-
-  float scale = std::ldexp(1.0f, -shift);
-  TCNB_CUDA_CHECK(cudaMemcpy(device_b_scale, &scale, sizeof(scale),
-                             cudaMemcpyHostToDevice));
-
-  cublasLtMatmulHeuristicResult_t heuristic;
-  int returned_results = 0;
-  status = cublasLtMatmulAlgoGetHeuristic(
-      handle, op_desc.value, a_desc.value, b_desc.value, c_desc.value,
-      d_desc.value, pref.value, 1, &heuristic, &returned_results);
-  if (status != CUBLAS_STATUS_SUCCESS)
-    return status;
-  if (returned_results == 0 || heuristic.state != CUBLAS_STATUS_SUCCESS) {
-    return returned_results == 0 ? CUBLAS_STATUS_NOT_SUPPORTED
-                                 : heuristic.state;
-  }
-
-  DeviceBuffer<unsigned char> workspace;
-  if (heuristic.workspaceSize > 0)
-    workspace.allocate(heuristic.workspaceSize);
-
-  uint64_t numerical_flags = 0;
-  size_t written = 0;
-  if (cublasLtMatmulAlgoCapGetAttribute(
-          &heuristic.algo, CUBLASLT_ALGO_CAP_NUMERICAL_IMPL_FLAGS,
-          &numerical_flags, sizeof(numerical_flags), &written) ==
-      CUBLAS_STATUS_SUCCESS) {
-    *flags_out = numerical_flags;
-  }
-
-  const float alpha = 1.0f;
-  const float beta = 1.0f;
-  status = cublasLtMatmul(handle, op_desc.value, &alpha, device_a.ptr,
-                          a_desc.value, device_b.ptr, b_desc.value, &beta,
-                          device_c.ptr, c_desc.value, device_d, d_desc.value,
-                          &heuristic.algo, workspace.ptr, heuristic.workspaceSize,
-                          0);
-  if (status == CUBLAS_STATUS_SUCCESS) {
-    TCNB_CUDA_CHECK(cudaMemcpy(host_sample, device_d, sizeof(float),
-                               cudaMemcpyDeviceToHost));
-  }
-
-  return status;
+static std::uint32_t repeat_byte(std::uint8_t value) {
+  return static_cast<std::uint32_t>(value) * 0x01010101u;
 }
 
-template <typename value_type>
-static WidthResult probe_width(cudaDataType_t data_type, bool fast_accum) {
-  WidthResult result;
-  result.supported = false;
-  result.tensor_op = false;
-  result.status = CUBLAS_STATUS_SUCCESS;
-  result.max_changed_shift = -1;
-  result.exact_tree_expected_shift = 33;
-  result.numerical_flags = 0;
-  result.sample_value = 0.0f;
+static std::uint8_t encode_fp8_e4m3(float value) {
+  return __nv_fp8_e4m3(value).__x;
+}
 
-  LtHandle handle;
-  TCNB_CUBLAS_CHECK(cublasLtCreate(&handle.value));
+static std::uint8_t encode_fp8_e5m2(float value) {
+  return __nv_fp8_e5m2(value).__x;
+}
 
-  DeviceBuffer<float> device_d;
-  DeviceBuffer<float> device_b_scale;
-  device_d.allocate(kM * kN);
-  device_b_scale.allocate(1);
+static std::uint8_t encode_fp6_e2m3(float value) {
+  return __nv_fp6_e2m3(value).__x;
+}
 
-  for (int shift = kMinShift; shift <= kMaxShift; ++shift) {
-    float sample = 0.0f;
-    cublasLtNumericalImplFlags_t flags = 0;
-    cublasStatus_t status = run_once<value_type>(
-        handle.value, data_type, fast_accum, shift, device_d.ptr,
-        device_b_scale.ptr,
-        &sample, &flags);
+static std::uint8_t encode_fp6_e3m2(float value) {
+  return __nv_fp6_e3m2(value).__x;
+}
 
-    if (status != CUBLAS_STATUS_SUCCESS) {
-      result.status = status;
-      break;
-    }
+static std::uint8_t encode_fp4_e2m1_padded(float value) {
+  return static_cast<std::uint8_t>(__nv_fp4_e2m1(value).__x << 2);
+}
 
-    result.supported = true;
-    result.numerical_flags = flags;
-    result.tensor_op =
-        (flags & CUBLASLT_NUMERICAL_IMPL_FLAGS_TENSOR_OP_MASK) != 0;
-    result.sample_value = sample;
-    if (output_changed(sample))
-      result.max_changed_shift = shift;
+static const char *variant_label(MmaVariant variant) {
+  switch (variant) {
+  case kFp8E4m3E4m3:
+    return "FP8 E4M3 x E4M3";
+  case kFp8E5m2E5m2:
+    return "FP8 E5M2 x E5M2";
+  case kFp8E4m3E5m2:
+    return "FP8 E4M3 x E5M2";
+  case kFp8E5m2E4m3:
+    return "FP8 E5M2 x E4M3";
+  case kFp6E2m3E2m3:
+    return "FP6 E2M3 x E2M3";
+  case kFp6E3m2E3m2:
+    return "FP6 E3M2 x E3M2";
+  case kFp4E2m1E2m1:
+    return "FP4 E2M1 x E2M1";
   }
 
+  return "unknown";
+}
+
+static const char *variant_instruction(MmaVariant variant) {
+  switch (variant) {
+  case kFp8E4m3E4m3:
+    return "mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32";
+  case kFp8E5m2E5m2:
+    return "mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32";
+  case kFp8E4m3E5m2:
+    return "mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32";
+  case kFp8E5m2E4m3:
+    return "mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32";
+  case kFp6E2m3E2m3:
+    return "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32";
+  case kFp6E3m2E3m2:
+    return "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e3m2.e3m2.f32";
+  case kFp4E2m1E2m1:
+    return "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32";
+  }
+
+  return "unknown";
+}
+
+static void variant_operands(MmaVariant variant, std::uint32_t *a_pack,
+                             std::uint32_t *b_pack) {
+  switch (variant) {
+  case kFp8E4m3E4m3:
+    *a_pack = repeat_byte(encode_fp8_e4m3(1.0f));
+    *b_pack = repeat_byte(encode_fp8_e4m3(1.0f));
+    break;
+  case kFp8E5m2E5m2:
+    *a_pack = repeat_byte(encode_fp8_e5m2(1.0f));
+    *b_pack = repeat_byte(encode_fp8_e5m2(1.0f));
+    break;
+  case kFp8E4m3E5m2:
+    *a_pack = repeat_byte(encode_fp8_e4m3(1.0f));
+    *b_pack = repeat_byte(encode_fp8_e5m2(1.0f));
+    break;
+  case kFp8E5m2E4m3:
+    *a_pack = repeat_byte(encode_fp8_e5m2(1.0f));
+    *b_pack = repeat_byte(encode_fp8_e4m3(1.0f));
+    break;
+  case kFp6E2m3E2m3:
+    *a_pack = repeat_byte(encode_fp6_e2m3(1.0f));
+    *b_pack = repeat_byte(encode_fp6_e2m3(1.0f));
+    break;
+  case kFp6E3m2E3m2:
+    *a_pack = repeat_byte(encode_fp6_e3m2(1.0f));
+    *b_pack = repeat_byte(encode_fp6_e3m2(1.0f));
+    break;
+  case kFp4E2m1E2m1:
+    *a_pack = repeat_byte(encode_fp4_e2m1_padded(1.0f));
+    *b_pack = repeat_byte(encode_fp4_e2m1_padded(1.0f));
+    break;
+  }
+}
+
+#define TCNB_MMA_ASM(instruction)                                               \
+  asm volatile(instruction " {%0, %1, %2, %3}, "                                \
+                           "{%4, %5, %6, %7}, {%8, %9}, "                      \
+                           "{%10, %11, %12, %13};\n"                           \
+               : "=f"(d0), "=f"(d1), "=f"(d2), "=f"(d3)                       \
+               : "r"(a_pack), "r"(a_pack), "r"(a_pack), "r"(a_pack),         \
+                 "r"(b_pack), "r"(b_pack), "f"(base), "f"(base),             \
+                 "f"(base), "f"(base))
+
+template <MmaVariant variant>
+__device__ __forceinline__ void run_direct_mma(std::uint32_t a_pack,
+                                               std::uint32_t b_pack, float base,
+                                               float *out) {
+  float d0;
+  float d1;
+  float d2;
+  float d3;
+
+  if (variant == kFp8E4m3E4m3) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32");
+  } else if (variant == kFp8E5m2E5m2) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32");
+  } else if (variant == kFp8E4m3E5m2) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32");
+  } else if (variant == kFp8E5m2E4m3) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32");
+  } else if (variant == kFp6E2m3E2m3) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32");
+  } else if (variant == kFp6E3m2E3m2) {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e3m2.e3m2.f32");
+  } else {
+    TCNB_MMA_ASM(
+        "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32");
+  }
+
+  if ((threadIdx.x & 31) == 0) {
+    out[0] = d0;
+    out[1] = d1;
+    out[2] = d2;
+    out[3] = d3;
+  }
+}
+
+#undef TCNB_MMA_ASM
+
+template <MmaVariant variant>
+__global__ void reduction_width_kernel(std::uint32_t a_pack,
+                                       std::uint32_t b_pack, float base,
+                                       float *out) {
+  run_direct_mma<variant>(a_pack, b_pack, base, out);
+}
+
+template <MmaVariant variant>
+static float run_once(std::uint32_t a_pack, std::uint32_t b_pack, int shift,
+                      float *device_out) {
+  float host_out[4] = {};
+  float base = std::ldexp(1.0f, shift);
+
+  reduction_width_kernel<variant><<<1, 32>>>(a_pack, b_pack, base, device_out);
+  TCNB_CUDA_CHECK(cudaGetLastError());
+  TCNB_CUDA_CHECK(cudaMemcpy(host_out, device_out, sizeof(host_out),
+                             cudaMemcpyDeviceToHost));
+
+  return host_out[0];
+}
+
+template <MmaVariant variant> static WidthResult probe_variant() {
+  WidthResult result = {};
+  result.executed = false;
+  result.max_changed_shift = -1;
+  result.observed_bits = -1;
+  result.sample_at_max = 0.0f;
+  result.sample_after_max = 0.0f;
+
+  std::uint32_t a_pack = 0;
+  std::uint32_t b_pack = 0;
+  variant_operands(variant, &a_pack, &b_pack);
+
+  float *device_out = nullptr;
+  TCNB_CUDA_CHECK(cudaMalloc(&device_out, 4 * sizeof(float)));
+
+  for (int shift = kMinShift; shift <= kMaxShift; ++shift) {
+    float base = std::ldexp(1.0f, shift);
+    float sample = run_once<variant>(a_pack, b_pack, shift, device_out);
+    result.executed = true;
+
+    if (sample > base) {
+      result.max_changed_shift = shift;
+      result.sample_at_max = sample;
+    } else if (result.max_changed_shift >= 0 &&
+               result.sample_after_max == 0.0f) {
+      result.sample_after_max = sample;
+    }
+  }
+
+  if (result.max_changed_shift >= 0) {
+    result.observed_bits =
+        result.max_changed_shift - kLog2InstructionK + 1;
+  }
+
+  TCNB_CUDA_CHECK(cudaFree(device_out));
   return result;
 }
 
-static void print_width_result(FILE *outfile, const char *label,
-                               bool fast_accum, const WidthResult &result) {
-  fprintf(outfile, "  | %-58s |\n", label);
-  fprintf(outfile, "  |   fast_accum: %-43s |\n",
-          fast_accum ? "enabled" : "disabled");
-  if (!result.supported) {
-    fprintf(outfile, "  |   cuBLASLt status: %-37s |\n",
-            cublas_status_name(result.status));
-    fprintf(outfile, "  |   reduction-width result: %-27s |\n",
-            "unsupported");
-    return;
-  }
-
-  fprintf(outfile, "  |   tensor-op algorithm: %-33s |\n",
-          result.tensor_op ? "yes" : "no");
-  fprintf(outfile, "  |   numerical flags: 0x%-34llx |\n",
-          static_cast<unsigned long long>(result.numerical_flags));
-  fprintf(outfile, "  |   max shift with D > 1: %-29d |\n",
+static bool print_result(FILE *outfile, MmaVariant variant,
+                         const WidthResult &result) {
+  fprintf(outfile, "  | %-58s |\n", variant_label(variant));
+  fprintf(outfile, "  |   PTX: %-51s |\n", variant_instruction(variant));
+  fprintf(outfile, "  |   K per instruction: %-35d |\n", kInstructionK);
+  fprintf(outfile, "  |   max shift with D > C: %-27d |\n",
           result.max_changed_shift);
-  fprintf(outfile, "  |   exact-tree expected max shift: %-18d |\n",
-          result.exact_tree_expected_shift);
-  fprintf(outfile, "  |   last sample value: %-31.9g |\n",
-          result.sample_value);
-}
+  fprintf(outfile, "  |   observed width bits: %-31d |\n",
+          result.observed_bits);
+  fprintf(outfile, "  |   binary32 reference max shift: %-20d |\n",
+          kExpectedBinary32MaxShift);
+  fprintf(outfile, "  |   binary32 reference bits: %-25d |\n",
+          kExpectedBinary32Bits);
+  fprintf(outfile, "  |   sample at max shift: %-28.9g |\n",
+          result.sample_at_max);
+  fprintf(outfile, "  |   sample after max shift: %-26.9g |\n",
+          result.sample_after_max);
 
-template <typename value_type>
-static void run_case(FILE *outfile, const char *label, cudaDataType_t data_type) {
-  print_width_result(outfile, label, false,
-                     probe_width<value_type>(data_type, false));
-  print_width_result(outfile, label, true,
-                     probe_width<value_type>(data_type, true));
+  bool passed = result.executed && result.observed_bits > 0;
+  printitem(outfile, "*) Direct PTX mma probe executed");
+  printpass(outfile, passed);
+  return passed;
 }
 
 int main(int argc, char **argv) {
   FILE *outfile = stdout;
+  bool pass = true;
 
-  printheader(outfile, "A. 5090 low-precision reduction-width probe");
-  fprintf(outfile, "  | M,N,K: %-48s |\n", "16,16,1024");
-  fprintf(outfile, "  | Probe: %-51s |\n", "D = 1 + K * 2^-shift");
-  fprintf(outfile, "  | Exact-tree FP32 output changes through shift 33.       |\n");
+  printheader(outfile, "A. 5090 direct-PTX low-precision reduction-width probe");
+  fprintf(outfile, "  | Probe: %-51s |\n", "D = 2^shift + K");
+  fprintf(outfile, "  | Method: %-50s |\n", "scan largest shift where D changes");
+  fprintf(outfile, "  | Notes: %-51s |\n", "single warp, direct mma.sync.aligned PTX");
 
 #if defined(TCNB_REDUCTION_FP8)
-  run_case<__nv_fp8_e4m3>(outfile, "FP8 E4M3", CUDA_R_8F_E4M3);
-  run_case<__nv_fp8_e5m2>(outfile, "FP8 E5M2", CUDA_R_8F_E5M2);
+  pass = print_result(outfile, kFp8E4m3E4m3,
+                      probe_variant<kFp8E4m3E4m3>()) &&
+         pass;
+  pass = print_result(outfile, kFp8E5m2E5m2,
+                      probe_variant<kFp8E5m2E5m2>()) &&
+         pass;
+  pass = print_result(outfile, kFp8E4m3E5m2,
+                      probe_variant<kFp8E4m3E5m2>()) &&
+         pass;
+  pass = print_result(outfile, kFp8E5m2E4m3,
+                      probe_variant<kFp8E5m2E4m3>()) &&
+         pass;
 #elif defined(TCNB_REDUCTION_FP6)
-  run_case<__nv_fp6_e2m3>(outfile, "FP6 E2M3", CUDA_R_6F_E2M3);
-  run_case<__nv_fp6_e3m2>(outfile, "FP6 E3M2", CUDA_R_6F_E3M2);
+  pass = print_result(outfile, kFp6E2m3E2m3,
+                      probe_variant<kFp6E2m3E2m3>()) &&
+         pass;
+  pass = print_result(outfile, kFp6E3m2E3m2,
+                      probe_variant<kFp6E3m2E3m2>()) &&
+         pass;
 #elif defined(TCNB_REDUCTION_FP4)
-  run_case<__nv_fp4_e2m1>(outfile, "FP4 E2M1", CUDA_R_4F_E2M1);
+  pass = print_result(outfile, kFp4E2m1E2m1,
+                      probe_variant<kFp4E2m1E2m1>()) &&
+         pass;
 #else
 #error "Define one TCNB_REDUCTION_* format macro"
 #endif
 
   printfooter(outfile);
-
-  return 0;
+  return pass ? 0 : 1;
 }
