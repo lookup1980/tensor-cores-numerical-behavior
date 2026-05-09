@@ -1,0 +1,365 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{microtype}
+
+\definecolor{accent}{HTML}{0B6E69}
+\definecolor{accentdark}{HTML}{084C49}
+\definecolor{ink}{HTML}{1E2933}
+\definecolor{muted}{HTML}{5B6770}
+\definecolor{soft}{HTML}{F2F7F6}
+\definecolor{line}{HTML}{C9D8D5}
+\definecolor{codebg}{HTML}{F7F9FA}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accentdark,
+  urlcolor=accentdark,
+  citecolor=accentdark,
+  pdftitle={RTX 5090 FP8/FP6/FP4 Reduction Tree Width Report},
+  pdfauthor={tensor-cores-numerical-behavior}
+}
+
+\titleformat{\section}
+  {\Large\bfseries\color{accentdark}}
+  {\thesection}{0.55em}{}
+\titleformat{\subsection}
+  {\large\bfseries\color{accentdark}}
+  {\thesubsection}{0.55em}{}
+\titlespacing*{\section}{0pt}{1.3em}{0.55em}
+\titlespacing*{\subsection}{0pt}{0.9em}{0.35em}
+
+\setlist[itemize]{leftmargin=1.2em, itemsep=0.2em, topsep=0.25em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.22}
+
+\lstdefinestyle{reportcode}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{line},
+  framerule=0.5pt,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2
+}
+\lstset{style=reportcode}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}p{0.72in}}
+\newcolumntype{C}{>{\centering\arraybackslash}p{0.72in}}
+
+\newtcolorbox{summarybox}{
+  enhanced,
+  colback=soft,
+  colframe=accent,
+  boxrule=0.7pt,
+  arc=2mm,
+  left=8pt,
+  right=8pt,
+  top=8pt,
+  bottom=8pt
+}
+
+\newtcolorbox{metricbox}[2]{
+  enhanced,
+  colback=white,
+  colframe=line,
+  boxrule=0.6pt,
+  arc=2mm,
+  left=7pt,
+  right=7pt,
+  top=6pt,
+  bottom=6pt,
+  title={#1},
+  coltitle=accentdark,
+  fonttitle=\bfseries,
+  attach boxed title to top left={xshift=5pt,yshift=-2mm},
+  boxed title style={colback=soft,colframe=line,boxrule=0.4pt,arc=1mm},
+  #2
+}
+
+\begin{document}
+\pagenumbering{gobble}
+
+\begin{titlepage}
+\vspace*{0.4in}
+{\Huge\bfseries\color{accentdark} RTX 5090 FP8/FP6/FP4\\ Reduction Tree Width Report\par}
+\vspace{0.2in}
+{\Large Direct PTX tensor-core boundary measurements\par}
+\vspace{0.25in}
+{\color{muted}Date: 2026-05-09\par}
+\vfill
+\begin{summarybox}
+\textbf{Headline finding.}
+All tested FP8, FP6, and FP4 direct-PTX QMMA variants expose a
+\textbf{21-bit effective addition/reduction boundary} for the
+\texttt{m16n8k32} probe. The binary32 reference for the same probe is
+\textbf{24 bits}, so the measured low-precision tensor-core path is
+\textbf{3 effective bits narrower} in this test.
+\end{summarybox}
+\vspace{0.2in}
+\begin{tabularx}{\linewidth}{>{\bfseries}l Y}
+\toprule
+GPU & NVIDIA GeForce RTX 5090, compute capability 12.0 \\
+CUDA & Toolkit 13.2, \texttt{nvcc} V13.2.78 \\
+Build target & \texttt{compute\_120a} / \texttt{sm\_120a} \\
+Source & \texttt{src/tc\_test\_numerics-5090-lowp-reduction-width.cu} \\
+\bottomrule
+\end{tabularx}
+\end{titlepage}
+\clearpage
+\pagenumbering{arabic}
+
+\section{Scope}
+
+The tests execute inline PTX \texttt{mma.sync.aligned} instructions directly
+from a single warp. They do not call cuBLASLt or any GEMM library. The reported
+quantity is an externally observable effective addition/reduction width for one
+\texttt{m16n8k32} instruction. It should not be read as a complete physical map
+of the internal reduction tree.
+
+FP8 uses regular unscaled FP8 MMA instructions. FP6 and FP4 use the PTX
+\texttt{kind::f8f6f4} form. Compact block-scaled MXFP4/MXFP6 instructions are
+outside this report.
+
+\section{Methodology}
+
+Each measurement runs one direct tensor-core MMA:
+
+\[
+  D = C + \sum_{i=0}^{31} A_i B_i
+\]
+
+All A and B elements are encoded as exactly \texttt{1.0}. The exact dot-product
+contribution is therefore \(K=32\). The C accumulator is a binary32 value set
+to \(2^{shift}\). The probe scans shifts from 16 to 40 and records the largest
+shift where the output is still greater than the base accumulator.
+
+\begin{summarybox}
+\[
+  p = max\_changed\_shift - \log_2(K) + 1
+\]
+\[
+  K = 32,\quad \log_2(K)=5,\quad max\_changed\_shift=25,\quad p=21
+\]
+\end{summarybox}
+
+A full binary32 significand has 24 bits. For the same \(K=32\) boundary probe,
+the binary32 reference max shift is:
+
+\[
+  \log_2(32) + 24 - 1 = 28
+\]
+
+\section{Key Code Snippets}
+
+The constants define the K dimension, scan interval, and binary32 reference.
+
+\begin{lstlisting}[language=C++]
+static const int kInstructionK = 32;
+static const int kLog2InstructionK = 5;
+static const int kMinShift = 16;
+static const int kMaxShift = 40;
+static const int kExpectedBinary32Bits = std::numeric_limits<float>::digits;
+static const int kExpectedBinary32MaxShift =
+    kLog2InstructionK + kExpectedBinary32Bits - 1;
+\end{lstlisting}
+
+FP4 E2M1 values are shifted into the central four bits required by the
+\texttt{kind::f8f6f4} PTX operand format.
+
+\begin{lstlisting}[language=C++]
+static std::uint8_t encode_fp4_e2m1_padded(float value) {
+  return static_cast<std::uint8_t>(__nv_fp4_e2m1(value).__x << 2);
+}
+\end{lstlisting}
+
+The MMA path is direct inline PTX. The output operands are binary32 registers.
+
+\begin{lstlisting}[language=C++]
+#define TCNB_MMA_ASM(instruction)                                               \
+  asm volatile(instruction " {%0, %1, %2, %3}, "                                \
+                           "{%4, %5, %6, %7}, {%8, %9}, "                      \
+                           "{%10, %11, %12, %13};\n"                           \
+               : "=f"(d0), "=f"(d1), "=f"(d2), "=f"(d3)                       \
+               : "r"(a_pack), "r"(a_pack), "r"(a_pack), "r"(a_pack),         \
+                 "r"(b_pack), "r"(b_pack), "f"(base), "f"(base),             \
+                 "f"(base), "f"(base))
+\end{lstlisting}
+
+The scan records the last visible contribution and converts it to bits.
+
+\begin{lstlisting}[language=C++]
+for (int shift = kMinShift; shift <= kMaxShift; ++shift) {
+  float base = std::ldexp(1.0f, shift);
+  float sample = run_once<variant>(a_pack, b_pack, shift, device_out);
+
+  if (sample > base) {
+    result.max_changed_shift = shift;
+    result.sample_at_max = sample;
+  } else if (result.max_changed_shift >= 0 &&
+             result.sample_after_max == 0.0f) {
+    result.sample_after_max = sample;
+  }
+}
+
+result.observed_bits =
+    result.max_changed_shift - kLog2InstructionK + 1;
+\end{lstlisting}
+
+The build targets the accelerated SM120a feature set explicitly.
+
+\begin{lstlisting}[language=make]
+test-5090-fp8-reduction-width: $(SRC_5090_LOWP_REDUCTION_WIDTH)
+	$(NVCC) $(NVCC_INCLUDES) -DTCNB_REDUCTION_FP8 -o $@ \
+	  -arch=$(GPU_COMPUTE_5090_ACCEL) -code=$(GPU_SM_5090_ACCEL) \
+	  $(NVCC_STD) $<
+\end{lstlisting}
+
+\section{Instructions Tested}
+
+{\footnotesize
+\begin{tabularx}{\linewidth}{l l Y}
+\toprule
+Family & Variant & PTX instruction \\
+\midrule
+FP8 & E4M3 x E4M3 & \texttt{mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32} \\
+FP8 & E5M2 x E5M2 & \texttt{mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32} \\
+FP8 & E4M3 x E5M2 & \texttt{mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32} \\
+FP8 & E5M2 x E4M3 & \texttt{mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32} \\
+FP6 & E2M3 x E2M3 & \texttt{mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32} \\
+FP6 & E3M2 x E3M2 & \texttt{mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e3m2.e3m2.f32} \\
+FP4 & E2M1 x E2M1 & \texttt{mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32} \\
+\bottomrule
+\end{tabularx}
+}
+
+\section{Results}
+
+\begin{metricbox}{Core numbers}{}
+\begin{tabularx}{\linewidth}{>{\bfseries}l Y}
+\toprule
+Largest shift where \(D>C\) & 25 \\
+Observed effective width & 21 bits \\
+Binary32 reference max shift & 28 \\
+Binary32 reference width & 24 bits \\
+Gap from binary32 reference & -3 bits \\
+\bottomrule
+\end{tabularx}
+\end{metricbox}
+
+\begin{tabularx}{\linewidth}{l l R R R R}
+\toprule
+Family & Variant & Max shift & Sample at max & First unchanged & Bits \\
+\midrule
+FP8 & E4M3 x E4M3 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP8 & E5M2 x E5M2 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP8 & E4M3 x E5M2 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP8 & E5M2 x E4M3 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP6 & E2M3 x E2M3 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP6 & E3M2 x E3M2 & 25 & 33,554,464 & 67,108,864 & 21 \\
+FP4 & E2M1 x E2M1 & 25 & 33,554,464 & 67,108,864 & 21 \\
+\bottomrule
+\end{tabularx}
+
+At shift 25, the base is \(2^{25}=33{,}554{,}432\), and the observed sample is
+33,554,464. The \(+32\) contribution is still visible. At shift 26, the first
+unchanged sample is 67,108,864, equal to \(2^{26}\). The contribution is no
+longer visible.
+
+\section{Facts and Evidence}
+
+\begin{tabularx}{\linewidth}{>{\bfseries}p{1.75in} Y}
+\toprule
+Fact & Evidence \\
+\midrule
+Direct PTX path & The source emits inline \texttt{mma.sync.aligned}; no cuBLASLt dependency is present. \\
+Single-instruction boundary & Each sample launches one warp and one \texttt{m16n8k32} MMA for the selected variant. \\
+Exact input contribution & All A and B operands encode \texttt{1.0}; the K dimension contributes exactly 32. \\
+Uniform observed width & All FP8, FP6, and FP4 result files report max shift 25 and width 21. \\
+Binary32 comparison & Binary32 would produce max shift 28 for the same K and boundary formula. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{SASS Confirmation}
+
+{\footnotesize
+\begin{tabularx}{\linewidth}{l Y}
+\toprule
+Target & Confirmed SASS mnemonics \\
+\midrule
+\texttt{test-5090-fp8-reduction-width} & \texttt{QMMA.16832.F32.E4M3.E4M3}, \texttt{QMMA.16832.F32.E5M2.E5M2}, \texttt{QMMA.16832.F32.E4M3.E5M2}, \texttt{QMMA.16832.F32.E5M2.E4M3} \\
+\texttt{test-5090-fp6-reduction-width} & \texttt{QMMA.16832.F32.E2M3.E2M3}, \texttt{QMMA.16832.F32.E3M2.E3M2} \\
+\texttt{test-5090-fp4-reduction-width} & \texttt{QMMA.16832.F32.E2M1.E2M1} \\
+\bottomrule
+\end{tabularx}
+}
+
+\section{Reproduction}
+
+\begin{lstlisting}[language=bash]
+make -B test-5090-fp8-reduction-width \
+        test-5090-fp6-reduction-width \
+        test-5090-fp4-reduction-width
+
+python3 run_tests.py -o 5090 \
+        5090-fp8-reduction-width \
+        5090-fp6-reduction-width \
+        5090-fp4-reduction-width
+
+cuobjdump --dump-sass test-5090-fp8-reduction-width
+cuobjdump --dump-sass test-5090-fp6-reduction-width
+cuobjdump --dump-sass test-5090-fp4-reduction-width
+\end{lstlisting}
+
+\section{Interpretation}
+
+The root cause of the 24-bit binary32 expectation failure is the low-precision
+QMMA accumulation/reduction path itself. The inputs are exact, the dot-product
+contribution is exact, and SASS confirms direct tensor-core QMMA instructions.
+The measured path simply stops preserving the \(+32\) contribution three shifts
+earlier than a full binary32 significand path would.
+
+The result is consistent across all tested FP8, FP6, and FP4 input type
+combinations: the observable effective addition/reduction boundary is 21 bits.
+
+\section{Limitations}
+
+\begin{itemize}
+\item This is a single-instruction \texttt{m16n8k32} boundary probe, not a full
+GEMM accuracy characterization.
+\item The measurement reports observable effective width, not the internal
+physical topology of the hardware reduction tree.
+\item FP6 and FP4 are tested through the PTX \texttt{kind::f8f6f4} form.
+Compact block-scaled MXFP4/MXFP6 instructions are not covered.
+\item The input pattern is all ones. Other value distributions can exercise
+different rounding and normalization behavior.
+\end{itemize}
+
+\section{Summary}
+
+\begin{summarybox}
+RTX 5090 direct-PTX FP8, FP6, and FP4 tensor-core MMA instructions tested here
+all measure at 21 effective reduction/addition bits for the \texttt{m16n8k32}
+boundary probe. The binary32 reference is 24 bits. The observed low-precision
+QMMA path is therefore consistently 3 effective bits narrower than binary32 for
+this measurement.
+\end{summarybox}
+
+\end{document}
