@@ -1,103 +1,83 @@
-NVCC = nvcc -g -G 
+NVCC = nvcc -g -G
+NVCC_STD = -std=c++11
 
-DEFAULT_TARGETS = test-V100 test-T4 test-A100 test-H100 test-4090 test-5090
+LEGACY_GPUS = V100 T4
+FORMAT_GPUS = A100 H100 4090 5090
+GPU_TARGETS = $(LEGACY_GPUS) $(FORMAT_GPUS)
+
+GPU_SM_V100 = sm_70
+GPU_SM_T4 = sm_75
+GPU_SM_A100 = sm_80
+GPU_SM_H100 = sm_90
+GPU_SM_4090 = sm_89
+GPU_SM_5090 = sm_120
+
+FORMAT_TARGETS = binary16 bf16 binary64 tf32 binary16-details
+
+SRC_V100 = tc_test_numerics-V100.cu
+SRC_BINARY16 = tc_test_numerics-T4-A100-binary16.cu
+SRC_BINARY16_DETAILS = tc_test_numerics-T4-A100-binary16-details.cu
+SRC_BF16 = tc_test_numerics-A100-bf16.cu
+SRC_BINARY64 = tc_test_numerics-A100-binary64.cu
+SRC_TF32 = tc_test_numerics-A100-tf32.cu
+
 SUPPORTED_SMS = $(shell nvcc --list-gpu-code 2>/dev/null)
-
-ifeq ($(strip $(SUPPORTED_SMS)),)
-ALL_TARGETS = $(DEFAULT_TARGETS)
-else
 ALL_TARGETS =
-ifneq ($(filter sm_70,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-V100
+
+define ADD_DEFAULT_TARGET
+ifeq ($(strip $(SUPPORTED_SMS)),)
+ALL_TARGETS += test-$(1)
+else ifneq ($(filter $(GPU_SM_$(1)),$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-$(1)
 endif
-ifneq ($(filter sm_75,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-T4
-endif
-ifneq ($(filter sm_80,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-A100
-endif
-ifneq ($(filter sm_90,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-H100
-endif
-ifneq ($(filter sm_89,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-4090
-endif
-ifneq ($(filter sm_120,$(SUPPORTED_SMS)),)
-ALL_TARGETS += test-5090
-endif
-endif
+endef
+
+$(foreach gpu,$(GPU_TARGETS),$(eval $(call ADD_DEFAULT_TARGET,$(gpu))))
 
 all: $(ALL_TARGETS)
 
-test-V100: tc_test_numerics-V100.cu
-	$(NVCC) -o $@ -arch=sm_70 -std=c++11 $<
+test-V100: $(SRC_V100)
+	$(NVCC) -o $@ -arch=$(GPU_SM_V100) $(NVCC_STD) $<
 
-test-T4: tc_test_numerics-T4-A100-binary16.cu
-	$(NVCC) -o $@ -arch=sm_75 -std=c++11 $<
+test-T4: $(SRC_BINARY16)
+	$(NVCC) -o $@ -arch=$(GPU_SM_T4) $(NVCC_STD) $<
 
-test-A100: test-A100-binary16 test-A100-bf16 test-A100-binary64 test-A100-tf32 test-A100-binary16-details
+define ADD_FORMAT_GPU_TARGET
+test-$(1): $(addprefix test-$(1)-,$(FORMAT_TARGETS))
+endef
 
-test-A100-binary16: tc_test_numerics-T4-A100-binary16.cu
-	$(NVCC) -o $@ -arch=sm_80 -std=c++11 $<
+$(foreach gpu,$(FORMAT_GPUS),$(eval $(call ADD_FORMAT_GPU_TARGET,$(gpu))))
 
-test-A100-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
-	$(NVCC) -o $@ -arch=sm_80 -std=c++11 $<
+test-%-binary16: $(SRC_BINARY16)
+	$(NVCC) -o $@ -arch=$(GPU_SM_$*) $(NVCC_STD) $<
 
-test-A100-%: tc_test_numerics-A100-%.cu
-	$(NVCC) -o $@ -arch=sm_80 -std=c++11 $<
+test-%-bf16: $(SRC_BF16)
+	$(NVCC) -o $@ -arch=$(GPU_SM_$*) $(NVCC_STD) $<
 
-test-H100: test-H100-binary16 test-H100-bf16 test-H100-binary64 test-H100-tf32 test-H100-binary16-details
+test-%-binary64: $(SRC_BINARY64)
+	$(NVCC) -o $@ -arch=$(GPU_SM_$*) $(NVCC_STD) $<
 
-test-H100-binary16: tc_test_numerics-T4-A100-binary16.cu
-	$(NVCC) -o $@ -arch=sm_90 -std=c++11 $<
+test-%-tf32: $(SRC_TF32)
+	$(NVCC) -o $@ -arch=$(GPU_SM_$*) $(NVCC_STD) $<
 
-test-H100-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
-	$(NVCC) -o $@ -arch=sm_90 -std=c++11 $<
+test-%-binary16-details: $(SRC_BINARY16_DETAILS)
+	$(NVCC) -o $@ -arch=$(GPU_SM_$*) $(NVCC_STD) $<
 
-test-H100-%: tc_test_numerics-A100-%.cu
-	$(NVCC) -o $@ -arch=sm_90 -std=c++11 $<
+clean: $(addprefix clean-,$(GPU_TARGETS)) clean-result
 
-test-4090: test-4090-binary16 test-4090-bf16 test-4090-binary64 test-4090-tf32 test-4090-binary16-details
+define ADD_LEGACY_CLEAN
+clean-$(1):
+	rm -f test-$(1)
+endef
 
-test-4090-binary16: tc_test_numerics-T4-A100-binary16.cu
-	$(NVCC) -o $@ -arch=sm_89 -std=c++11 $<
+$(foreach gpu,$(LEGACY_GPUS),$(eval $(call ADD_LEGACY_CLEAN,$(gpu))))
 
-test-4090-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
-	$(NVCC) -o $@ -arch=sm_89 -std=c++11 $<
+define ADD_FORMAT_GPU_CLEAN
+clean-$(1):
+	rm -f test-$(1)-*
+endef
 
-test-4090-%: tc_test_numerics-A100-%.cu
-	$(NVCC) -o $@ -arch=sm_89 -std=c++11 $<
-
-test-5090: test-5090-binary16 test-5090-bf16 test-5090-binary64 test-5090-tf32 test-5090-binary16-details
-
-test-5090-binary16: tc_test_numerics-T4-A100-binary16.cu
-	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
-
-test-5090-binary16-details: tc_test_numerics-T4-A100-binary16-details.cu
-	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
-
-test-5090-%: tc_test_numerics-A100-%.cu
-	$(NVCC) -o $@ -arch=sm_120 -std=c++11 $<
-
-clean: clean-V100 clean-T4 clean-A100 clean-H100 clean-4090 clean-5090 clean-result
-
-clean-V100:
-	rm -f test-V100
-
-clean-T4:
-	rm -f test-T4
-
-clean-A100:
-	rm -f test-A100-*
-
-clean-H100:
-	rm -f test-H100-*
-
-clean-4090:
-	rm -f test-4090-*
-
-clean-5090:
-	rm -f test-5090-*
+$(foreach gpu,$(FORMAT_GPUS),$(eval $(call ADD_FORMAT_GPU_CLEAN,$(gpu))))
 
 clean-result:
 	rm -f result-*
