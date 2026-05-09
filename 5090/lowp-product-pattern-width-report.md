@@ -28,6 +28,24 @@ Headline results:
 | FP6 | E3M2 x E3M2 | 18 | yes | 18 | yes |
 | FP4 | E2M1 x E2M1 | 8 | yes | 8 | yes |
 
+## How To Read The Numbers
+
+This report uses three related but different quantities:
+
+| Term | Meaning | How to interpret it |
+| --- | --- | --- |
+| Extreme width | Width between the largest finite A/B product and the smallest positive A/B product available to the format pair. | This is the widest gap the format can generate in this test. It may or may not survive. |
+| Max effective width | Widest product-exponent gap where `epsilon` remains visibly retained after cancellation. | This is the measured retention boundary for this layout and criterion. |
+| Format-limited | The max effective width equals the extreme width. | The test did not find a hardware retention limit before running out of representable product range. |
+
+The key conclusion is not that all formats have the same width. The result is:
+
+- FP8 has enough product dynamic range to expose a non-format-limited
+  retention boundary at 27 bits in this selected product layout.
+- FP6 and FP4 do not have enough product dynamic range in this test to expose a
+  failing boundary. Their reported widths are lower bounds capped by the
+  format range.
+
 ## Method
 
 The test first maps independent product positions for output register `D0`.
@@ -66,6 +84,10 @@ The 50% tolerance is intentional. This pattern is used to detect whether the
 small term is still visible after cancellation, not to require exact arithmetic
 on the retained term. Borderline FP8 cases are therefore reported explicitly.
 
+The sign pattern uses a negative A value for the `-M` term and keeps the same
+B product magnitude. This keeps `+M` and `-M` symmetric while allowing the
+third independent product to carry `epsilon`.
+
 ## Full Results
 
 | Variant | Tested exponent pairs | Survived pairs | Max product | Min product | Extreme width | Max effective width |
@@ -77,6 +99,18 @@ on the retained term. Borderline FP8 cases are therefore reported explicitly.
 | FP6 E2M3 x E2M3 | 78 | 78 | 56.25 | 0.015625 | 12 | 12 |
 | FP6 E3M2 x E3M2 | 171 | 171 | 784 | 0.00390625 | 18 | 18 |
 | FP4 E2M1 x E2M1 | 36 | 36 | 36 | 0.25 | 8 | 8 |
+
+Survival ratios help separate FP8 from the format-limited cases:
+
+| Variant | Survival ratio | Meaning |
+| --- | ---: | --- |
+| FP8 E4M3 x E4M3 | 91.9% | Wide gaps begin to fail; not format-limited. |
+| FP8 E5M2 x E5M2 | 64.0% | Much wider available range; many large gaps fail. |
+| FP8 E4M3 x E5M2 | 76.5% | Mixed range exposes the same 27-bit boundary. |
+| FP8 E5M2 x E4M3 | 76.5% | Same observed boundary in the opposite operand order. |
+| FP6 E2M3 x E2M3 | 100% | No failing case within representable product range. |
+| FP6 E3M2 x E3M2 | 100% | No failing case within representable product range. |
+| FP4 E2M1 x E2M1 | 100% | No failing case within representable product range. |
 
 ## Extreme Cases
 
@@ -112,6 +146,10 @@ half of the expected epsilon contribution, but still positive and within the
 retention tolerance. This means "27 bits" should be read as the widest
 detectable retained epsilon under this criterion, not exact 27-bit arithmetic.
 
+The next wider gaps are not listed as pass cases because the test requires both
+a positive result and a result close enough to the expected epsilon. This avoids
+counting unrelated residue as a retained small term.
+
 ## Format Analysis
 
 ### FP8 E4M3 x E4M3
@@ -129,6 +167,10 @@ The extreme case is lost (`observed = 0`). The widest retained case is 27 bits,
 with `M` at exponent 17 and `epsilon` at exponent -9. This is not
 format-limited.
 
+Important edge case: the retained 27-bit case has `observed = 0.0078125` and
+`expected = 0.0153808594`. That is just inside the 50% tolerance. It is a
+retention signal, not an exact summation signal.
+
 ### FP8 E5M2 x E5M2
 
 E5M2 has a much wider exponent range than E4M3, so the extreme product width
@@ -136,12 +178,21 @@ reaches 64 bits. The extreme case is lost, and the widest retained case is
 again 27 bits. Increasing the representable product range does not increase the
 observed retained width for this pattern.
 
+Important edge case: the retained 27-bit case has `observed = 128` and
+`expected = 240`. This is also near the tolerance boundary. E5M2 provides a
+larger test range, but the widest retained product gap is not more accurate in
+absolute terms.
+
 ### FP8 Mixed E4M3/E5M2
 
 Both mixed variants reach an extreme width of 50 bits and a max effective width
 of 27 bits. The two directions match in this selected layout, but that should
 not be generalized to every possible operand placement or output lane without
 additional layout sweeps.
+
+The mixed cases are useful because they show the 27-bit retention boundary is
+not unique to a same-format FP8 instruction. Both operand orders hit the same
+max effective width under the selected independent-product layout.
 
 ### FP6 E2M3 x E2M3
 
@@ -187,6 +238,32 @@ The important correction is that FP8 E4M3 should be tested through products,
 not through A-only exact powers with `B = 1`. Product terms make the E4M3 x
 E4M3 extreme width 36 bits. The observed retained width under the current
 product-pattern criterion is 27 bits.
+
+## Relationship To The 21-Bit Boundary Probe
+
+This report and `lowp-reduction-width-report.md` measure different things:
+
+| Probe | Pattern | Reported signal |
+| --- | --- | --- |
+| Boundary scan | `D = C + 32` | When a full MMA update stops changing a large external accumulator. |
+| Product pattern | `M - M + epsilon` | Whether a tiny product term survives internal cancellation. |
+
+The direct accumulator-boundary probe reports a 21-bit per-MMA update boundary.
+This product-pattern probe reports FP8 retained cases up to 27 bits in a
+specific cancellation layout. These numbers are complementary, not
+contradictory: they exercise different stages and different numerical
+questions.
+
+## Suggested Follow-Up Tests
+
+- Sweep additional independent product positions and output registers to test
+  whether 27 bits is stable across layout.
+- Tighten the retained-case threshold, for example 25% relative error, to
+  separate "epsilon visible" from "epsilon approximately correct".
+- Add a fail-boundary table that records the smallest failing gap above each
+  max retained width.
+- Add block-scaled MXFP4/MXFP6 variants when direct PTX support is available in
+  the local toolchain.
 
 ## Verification
 

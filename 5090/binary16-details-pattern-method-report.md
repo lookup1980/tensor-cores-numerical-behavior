@@ -325,10 +325,47 @@ borrow the binary16-details structure:
    Sweep `k` to see whether a cancelled dot product is normalized before the
    external accumulator add.
 
-For FP8 this should be feasible with powers of two across a useful exponent
-range. FP6 and especially FP4 have smaller exponent and significand ranges, so
-some patterns may need scaling, repeated products, or accumulator-based
-variants to create a large enough exponent gap.
+For FP8 this is feasible, but a direct A-only power sweep can still be
+misleading. E4M3 has much more useful range when the small and large terms are
+formed as A/B products rather than by varying A while holding B at `1.0`. The
+direct-PTX follow-up therefore uses product terms, not just input terms:
+
+```text
+M       = A_large * B_large
+epsilon = A_small * B_small
+```
+
+For FP6 and especially FP4, the product range is still small enough that the
+probe can become format-limited. In that case the result is a lower bound on
+retention for the tested layout, not a measured failure boundary.
+
+## Direct-PTX Follow-Up Outcome
+
+The follow-up implementation is
+`src/tc_test_numerics-5090-lowp-reduction-pattern.cu`, with detailed results in
+`5090/lowp-product-pattern-width-report.md` and the matching TeX/PDF report.
+
+It maps independent product positions for output `D0` and uses:
+
+```text
+D0 = 4 * M - 4 * M + 4 * epsilon
+```
+
+The important outcome is:
+
+| Format pair | Extreme product width | Max effective width | Interpretation |
+| --- | ---: | ---: | --- |
+| FP8 E4M3 x E4M3 | 36 | 27 | Product range exposes a non-format-limited boundary. |
+| FP8 E5M2 x E5M2 | 64 | 27 | Wider range, same retained-width boundary. |
+| FP8 E4M3 x E5M2 | 50 | 27 | Mixed format, same retained-width boundary. |
+| FP8 E5M2 x E4M3 | 50 | 27 | Mixed format, same retained-width boundary. |
+| FP6 E2M3 x E2M3 | 12 | 12 | Format-limited; extreme case survives. |
+| FP6 E3M2 x E3M2 | 18 | 18 | Format-limited; extreme case survives. |
+| FP4 E2M1 x E2M1 | 8 | 8 | Format-limited; extreme case survives. |
+
+This resolves the main pitfall from a direct translation of the binary16
+pattern: FP8 E4M3 must be tested through product dynamic range. Holding B at
+`1.0` understates the testable width.
 
 ## Cautions
 
@@ -343,6 +380,10 @@ variants to create a large enough exponent gap.
 - A final zero does not always mean the whole tensor-core path lacks precision;
   it means the tested tiny term was not retained through the particular path
   exercised by that pattern.
+- A retained nonzero value does not imply exact arithmetic. In the FP8
+  follow-up, the widest retained 27-bit cases are near the 50% retention
+  threshold and should be read as "epsilon remains visible", not as exact
+  27-bit summation.
 
 ## Summary
 
@@ -357,4 +398,7 @@ This method is complementary to the existing RTX 5090 FP8/FP6/FP4
 `C = 2^shift + K` probe. The boundary scan gives a clean per-MMA update width.
 The pattern method can further test whether that same width appears inside the
 dot-product reduction tree, whether it varies by product position, and whether
-normalization before the accumulator add changes the visible result.
+normalization before the accumulator add changes the visible result. The
+direct-PTX product-pattern follow-up confirms that FP8 needs product-based
+range construction and that FP6/FP4 are currently limited by the product ranges
+the formats can express in this test.
