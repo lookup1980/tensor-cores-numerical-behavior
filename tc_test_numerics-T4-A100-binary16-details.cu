@@ -91,16 +91,16 @@ void wmma_init_run (half *h_a, half *h_b, returntype *h_c,
                     bool init) {
 
   // Copy input from host to device.
-  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, 16*16*sizeof(half), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, 16*16*sizeof(half), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, 16*16*sizeof(returntype), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, TCNB_TILE_ELEMENTS * sizeof(half), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, TCNB_TILE_ELEMENTS * sizeof(half), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyHostToDevice));
 
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
   TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost));
+  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyDeviceToHost));
 }
 
 
@@ -155,11 +155,11 @@ void print_result(float *fa, float *fb, half *ha, half *hb, float c, float resul
 }
 
 void reset_all(float *fa, float *fb, half *ha, half *hb, float *fc) {
-  memset(fa, 0, 16*16*sizeof(float));
-  memset(fb, 0, 16*16*sizeof(float));
-  memset(ha, 0, 16*16*sizeof(half));
-  memset(hb, 0, 16*16*sizeof(half));
-  memset(fc, 0, 16*16*sizeof(float));
+  memset(fa, 0, TCNB_TILE_ELEMENTS * sizeof(float));
+  memset(fb, 0, TCNB_TILE_ELEMENTS * sizeof(float));
+  memset(ha, 0, TCNB_TILE_ELEMENTS * sizeof(half));
+  memset(hb, 0, TCNB_TILE_ELEMENTS * sizeof(half));
+  memset(fc, 0, TCNB_TILE_ELEMENTS * sizeof(float));
 }
 
 void my_test_addr() {
@@ -168,19 +168,19 @@ void my_test_addr() {
   half *h_a, *h_b, *h16_c, *d16_a, *d16_b, *d16_c;
   float *d_c, *h_c;
 
-  h_a = new half[16*16];
-  h_b = new half[16*16];
-  h_c = new float[16*16];
-  h16_c = new half[16*16];
+  h_a = new half[TCNB_TILE_ELEMENTS];
+  h_b = new half[TCNB_TILE_ELEMENTS];
+  h_c = new float[TCNB_TILE_ELEMENTS];
+  h16_c = new half[TCNB_TILE_ELEMENTS];
 
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, TCNB_TILE_ELEMENTS * sizeof(float)));
 
   // mgu
-  float fa[16*16] = {};
-  float fb[16*16] = {};
+  float fa[TCNB_TILE_ELEMENTS] = {};
+  float fb[TCNB_TILE_ELEMENTS] = {};
   float temp = 0;
 
   printf("\n");
@@ -485,19 +485,19 @@ void my_test_normalize() {
   half *h_a, *h_b, *h16_c, *d16_a, *d16_b, *d16_c;
   float *d_c, *h_c;
 
-  h_a = new half[16*16];
-  h_b = new half[16*16];
-  h_c = new float[16*16];
-  h16_c = new half[16*16];
+  h_a = new half[TCNB_TILE_ELEMENTS];
+  h_b = new half[TCNB_TILE_ELEMENTS];
+  h_c = new float[TCNB_TILE_ELEMENTS];
+  h16_c = new half[TCNB_TILE_ELEMENTS];
 
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, 16*16*sizeof(half)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, TCNB_TILE_ELEMENTS * sizeof(half)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, TCNB_TILE_ELEMENTS * sizeof(float)));
 
   // mgu
-  float fa[16*16] = {};
-  float fb[16*16] = {};
+  float fa[TCNB_TILE_ELEMENTS] = {};
+  float fb[TCNB_TILE_ELEMENTS] = {};
   float temp = 0;
 
   printf("\n");

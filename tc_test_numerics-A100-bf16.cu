@@ -98,9 +98,9 @@ void wmma_init_run (nv_bfloat16 *h_a, nv_bfloat16 *h_b, returntype *h_c,
   TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy input from host to device.
-  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, 16*16*sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, 16*16*sizeof(returntype), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, TCNB_TILE_ELEMENTS * sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, TCNB_TILE_ELEMENTS * sizeof(nv_bfloat16), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyHostToDevice));
 
   TCNB_CUDA_CHECK(cudaGetLastError());
 
@@ -110,7 +110,7 @@ void wmma_init_run (nv_bfloat16 *h_a, nv_bfloat16 *h_b, returntype *h_c,
   TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, 16*16*sizeof(returntype), cudaMemcpyDeviceToHost));
+  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, TCNB_TILE_ELEMENTS * sizeof(returntype), cudaMemcpyDeviceToHost));
 
   TCNB_CUDA_CHECK(cudaGetLastError());
 }
@@ -140,15 +140,15 @@ int main(int argc, char** argv){
   assert(belowone == 1. - ldexp(1., -24));
   assert(aboveone == 1. + ldexp(1., -23));
 
-  h_a = new nv_bfloat16[16*16];
-  h_b = new nv_bfloat16[16*16];
-  h_c = new float[16*16];
-  h16_c = new nv_bfloat16[16*16];
+  h_a = new nv_bfloat16[TCNB_TILE_ELEMENTS];
+  h_b = new nv_bfloat16[TCNB_TILE_ELEMENTS];
+  h_c = new float[TCNB_TILE_ELEMENTS];
+  h16_c = new nv_bfloat16[TCNB_TILE_ELEMENTS];
 
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, 16*16*sizeof(nv_bfloat16)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, 16*16*sizeof(nv_bfloat16)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, 16*16*sizeof(nv_bfloat16)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_a, TCNB_TILE_ELEMENTS * sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_b, TCNB_TILE_ELEMENTS * sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d16_c, TCNB_TILE_ELEMENTS * sizeof(nv_bfloat16)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, TCNB_TILE_ELEMENTS * sizeof(float)));
 
   FILE *outfile = stdout;
   bool pass;

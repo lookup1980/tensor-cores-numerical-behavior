@@ -92,16 +92,16 @@ void wmma_init_run (float *h_a, float *h_b, float *h_c,
                     bool init) {
 
   // Copy input from host to device.
-  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, 16*16*sizeof(float), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, 16*16*sizeof(float), cudaMemcpyHostToDevice));
-  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, 16*16*sizeof(float), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_a, h_a, TCNB_TILE_ELEMENTS * sizeof(float), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_b, h_b, TCNB_TILE_ELEMENTS * sizeof(float), cudaMemcpyHostToDevice));
+  TCNB_CUDA_CHECK(cudaMemcpy(d_c, h_c, TCNB_TILE_ELEMENTS * sizeof(float), cudaMemcpyHostToDevice));
 
   // Perform matrix multiplication.
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
   TCNB_CUDA_CHECK(cudaGetLastError());
 
   // Copy result from device to host.
-  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, 16*16*sizeof(float), cudaMemcpyDeviceToHost));
+  TCNB_CUDA_CHECK(cudaMemcpy(h_c, d_c, TCNB_TILE_ELEMENTS * sizeof(float), cudaMemcpyDeviceToHost));
 }
 
 
@@ -122,13 +122,13 @@ int main(int argc, char** argv){
   assert(belowone == 1. - ldexp(1., -24));
   assert(aboveone == 1. + ldexp(1., -23));
 
-  h_a = new float[16*16];
-  h_b = new float[16*16];
-  h_c = new float[16*16];
+  h_a = new float[TCNB_TILE_ELEMENTS];
+  h_b = new float[TCNB_TILE_ELEMENTS];
+  h_c = new float[TCNB_TILE_ELEMENTS];
  
-  TCNB_CUDA_CHECK(cudaMalloc(&d_a, 16*16*sizeof(float)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_b, 16*16*sizeof(float)));
-  TCNB_CUDA_CHECK(cudaMalloc(&d_c, 16*16*sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_a, TCNB_TILE_ELEMENTS * sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_b, TCNB_TILE_ELEMENTS * sizeof(float)));
+  TCNB_CUDA_CHECK(cudaMalloc(&d_c, TCNB_TILE_ELEMENTS * sizeof(float)));
 
   FILE *outfile = stdout;
   bool pass;
