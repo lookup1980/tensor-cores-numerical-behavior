@@ -13,7 +13,12 @@ GPU_SM_H100 = sm_90
 GPU_SM_4090 = sm_89
 GPU_SM_5090 = sm_120
 
-FORMAT_TARGETS = binary16 bf16 binary64 tf32 binary16-details
+BASE_FORMAT_TARGETS = binary16 bf16 binary64 tf32 binary16-details
+EXTRA_FORMAT_TARGETS_A100 =
+EXTRA_FORMAT_TARGETS_H100 =
+EXTRA_FORMAT_TARGETS_4090 =
+EXTRA_FORMAT_TARGETS_5090 =
+FORMAT_TARGETS = $(BASE_FORMAT_TARGETS)
 
 SRC_V100 = src/tc_test_numerics-V100.cu
 SRC_BINARY16 = src/tc_test_numerics-T4-A100-binary16.cu
@@ -44,7 +49,7 @@ test-T4: $(SRC_BINARY16)
 	$(NVCC) $(NVCC_INCLUDES) -o $@ -arch=$(GPU_SM_T4) $(NVCC_STD) $<
 
 define ADD_FORMAT_GPU_TARGET
-test-$(1): $(addprefix test-$(1)-,$(FORMAT_TARGETS))
+test-$(1): $(addprefix test-$(1)-,$(BASE_FORMAT_TARGETS) $(EXTRA_FORMAT_TARGETS_$(1)))
 endef
 
 $(foreach gpu,$(FORMAT_GPUS),$(eval $(call ADD_FORMAT_GPU_TARGET,$(gpu))))
