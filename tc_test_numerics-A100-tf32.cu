@@ -23,6 +23,7 @@
 #include <iomanip>
 #include "include/tcnb_output.hpp"
 #include "include/tcnb_cuda_check.cuh"
+#include "include/tcnb_matrix.cuh"
 
 using namespace nvcuda;
 
@@ -57,13 +58,6 @@ void print_matrix (float *a,
 /****************************************************
  * Memory management and wmma::mma_sync() interface *
  ****************************************************/
-
-/* Set the entries of host arrays to zero. */
-void host_reset(float *a, float *b, float *c) {
-  memset(a, 0, 16*16*sizeof(float));
-  memset(b, 0, 16*16*sizeof(float));
-  memset(c, 0, 16*16*sizeof(float));
-}
 
 /* Compute C += A*B, where A, B, and C are 16x16x16 matrices.
    The matrix C is initialized to 0 when `init` is true. */
