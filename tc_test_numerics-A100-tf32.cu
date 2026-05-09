@@ -375,9 +375,9 @@ int main(int argc, char** argv){
   printfooter(outfile);
 
   // Free dynamically allocated memory.
-  //  free(h_a);
-  //  free(h_b);
-  free(h_c);
+  delete[] h_a;
+  delete[] h_b;
+  delete[] h_c;
   cudaFree(d_a);
   cudaFree(d_b);
   cudaFree(d_c);

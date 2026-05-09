@@ -102,7 +102,7 @@ void wmma_init_run (double *h_a, double *h_b, double *h_c,
   wmma_ker<<<1,32>>>(d_a, d_b, d_c, init);
 
   // Copy result from device to host.
-  cudaMemcpy(h_c, d_c, 16*16*sizeof(float), cudaMemcpyDeviceToHost);
+  cudaMemcpy(h_c, d_c, 16*16*sizeof(double), cudaMemcpyDeviceToHost);
 }
 
 
@@ -316,9 +316,9 @@ int main(int argc, char** argv){
   printfooter(outfile);
 
   // Free dynamically allocated memory.
-  //  free(h_a);
-  //  free(h_b);
-  free(h_c);
+  delete[] h_a;
+  delete[] h_b;
+  delete[] h_c;
   cudaFree(d_a);
   cudaFree(d_b);
   cudaFree(d_c);

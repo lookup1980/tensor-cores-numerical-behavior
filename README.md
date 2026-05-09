@@ -23,12 +23,15 @@ C. Rounding modes in tensor core computations
 D. Features of the accumulator
 1) Tensor cores do not implement guard digits (extra bits on the right)
 2) Tensor cores do not normalize by shifting right (in sums of elements with same sign)
-3) Tensor cores do not normllize by shifting left (in sums of elements with opposite sign)
+3) Tensor cores do not normalize by shifting left (in sums of elements with opposite sign)
 4) Tensor cores implement two carry-out digits (extra bits on the left)
 5) The product of tensor cores is not monotonic
 
 ### Compiling and running the suite
-The experiments can be compiled by issuing `make all`, which generates several executable files:
+The experiments can be compiled by issuing `make all`, which generates the
+executable files supported by the installed CUDA compiler. Older CUDA releases
+may support architectures that newer releases have dropped; explicit targets
+remain available when the local `nvcc` supports their `sm_` architecture:
 * `test-V100`, for testing Volta GPUs (requires version 9 or newer of the CUDA platform);
 * `test-T4`, for testing Turing GPUs (requires version 10 or newer of the CUDA platform);
 * `test-A100-binary16`, `test-A100-bf16`, `test-A100-tf32`, `test-A100-binary64`, for testing the four precision configurations available on Ampere GPUs (requires version 11 or newer of the CUDA platform).

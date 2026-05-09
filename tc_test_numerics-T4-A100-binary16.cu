@@ -425,13 +425,13 @@ int main(int argc, char** argv){
   printfooter(outfile);
 
   // Free dynamically allocated memory.
-  free(h_a);
-  free(h_b);
-  free(h16_c);
+  delete[] h_a;
+  delete[] h_b;
+  delete[] h16_c;
   cudaFree(d16_a);
   cudaFree(d16_b);
   cudaFree(d16_c);
   cudaFree(d_c);
-  free(h_c);
+  delete[] h_c;
 
 }

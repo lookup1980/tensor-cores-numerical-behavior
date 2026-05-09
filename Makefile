@@ -1,6 +1,33 @@
 NVCC = nvcc -g -G 
 
-all: test-V100 test-T4 test-A100 test-H100 test-4090 test-5090
+DEFAULT_TARGETS = test-V100 test-T4 test-A100 test-H100 test-4090 test-5090
+SUPPORTED_SMS = $(shell nvcc --list-gpu-code 2>/dev/null)
+
+ifeq ($(strip $(SUPPORTED_SMS)),)
+ALL_TARGETS = $(DEFAULT_TARGETS)
+else
+ALL_TARGETS =
+ifneq ($(filter sm_70,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-V100
+endif
+ifneq ($(filter sm_75,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-T4
+endif
+ifneq ($(filter sm_80,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-A100
+endif
+ifneq ($(filter sm_90,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-H100
+endif
+ifneq ($(filter sm_89,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-4090
+endif
+ifneq ($(filter sm_120,$(SUPPORTED_SMS)),)
+ALL_TARGETS += test-5090
+endif
+endif
+
+all: $(ALL_TARGETS)
 
 test-V100: tc_test_numerics-V100.cu
 	$(NVCC) -o $@ -arch=sm_70 -std=c++11 $<
