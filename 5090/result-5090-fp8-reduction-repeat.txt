@@ -1,0 +1,264 @@
++--------------------------------------------------------------+
+| A. 5090 repeated-MMA low-precision reduction-width probe     |
++--------------------------------------------------------------+
+  | Probe: D = 2^shift + repeat_count * K                      |
+  | Method: chain 2/4/8/16 direct MMA ops                      |
+  | Notes: same warp, accumulator fed forward                  |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 2                        |
+  |   total contribution: 64                               |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 26                      |
+  |   single-round binary32 shift: 29                     |
+  |   sample at max shift: 33554496                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 4                        |
+  |   total contribution: 128                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 27                      |
+  |   single-round binary32 shift: 30                     |
+  |   sample at max shift: 33554560                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 8                        |
+  |   total contribution: 256                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 28                      |
+  |   single-round binary32 shift: 31                     |
+  |   sample at max shift: 33554688                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 16                       |
+  |   total contribution: 512                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 29                      |
+  |   single-round binary32 shift: 32                     |
+  |   sample at max shift: 33554944                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 2                        |
+  |   total contribution: 64                               |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 26                      |
+  |   single-round binary32 shift: 29                     |
+  |   sample at max shift: 33554496                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 4                        |
+  |   total contribution: 128                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 27                      |
+  |   single-round binary32 shift: 30                     |
+  |   sample at max shift: 33554560                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 8                        |
+  |   total contribution: 256                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 28                      |
+  |   single-round binary32 shift: 31                     |
+  |   sample at max shift: 33554688                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 16                       |
+  |   total contribution: 512                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 29                      |
+  |   single-round binary32 shift: 32                     |
+  |   sample at max shift: 33554944                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 2                        |
+  |   total contribution: 64                               |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 26                      |
+  |   single-round binary32 shift: 29                     |
+  |   sample at max shift: 33554496                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 4                        |
+  |   total contribution: 128                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 27                      |
+  |   single-round binary32 shift: 30                     |
+  |   sample at max shift: 33554560                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 8                        |
+  |   total contribution: 256                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 28                      |
+  |   single-round binary32 shift: 31                     |
+  |   sample at max shift: 33554688                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E4M3 x E5M2                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e5m2.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 16                       |
+  |   total contribution: 512                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 29                      |
+  |   single-round binary32 shift: 32                     |
+  |   sample at max shift: 33554944                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 2                        |
+  |   total contribution: 64                               |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 26                      |
+  |   single-round binary32 shift: 29                     |
+  |   sample at max shift: 33554496                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 4                        |
+  |   total contribution: 128                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 27                      |
+  |   single-round binary32 shift: 30                     |
+  |   sample at max shift: 33554560                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 8                        |
+  |   total contribution: 256                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 28                      |
+  |   single-round binary32 shift: 31                     |
+  |   sample at max shift: 33554688                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  | FP8 E5M2 x E4M3                                            |
+  |   PTX: mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e4m3.f32 |
+  |   K per instruction: 32                                  |
+  |   repeated MMA instructions: 16                       |
+  |   total contribution: 512                              |
+  |   max shift with D > C: 25                          |
+  |   per-MMA observed width bits: 21                      |
+  |   binary32 per-MMA reference shift: 28                |
+  |   binary32 reference bits: 24                        |
+  |   single-round 21-bit shift: 29                      |
+  |   single-round binary32 shift: 32                     |
+  |   sample at max shift: 33554944                     |
+  |   sample after max shift: 67108864                   |
+  | *) Direct PTX mma probe executed                  [PASS] |
+  |   per-MMA 21-bit model shift: 25                   |
+  | *) Matches per-MMA 21-bit model                   [PASS] |
+  +----------------------------------------------------------+
+

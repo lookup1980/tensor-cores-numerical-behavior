@@ -24,8 +24,7 @@ static const int kLog2InstructionK = 5;
 static const int kMinShift = 16;
 static const int kMaxShift = 40;
 static const int kExpectedBinary32Bits = std::numeric_limits<float>::digits;
-static const int kExpectedBinary32MaxShift =
-    kLog2InstructionK + kExpectedBinary32Bits - 1;
+enum { kObservedModelBits = 21 };
 
 enum MmaVariant {
   kFp8E4m3E4m3,
@@ -151,13 +150,13 @@ static void variant_operands(MmaVariant variant, std::uint32_t *a_pack,
                            "{%10, %11, %12, %13};\n"                           \
                : "=f"(d0), "=f"(d1), "=f"(d2), "=f"(d3)                       \
                : "r"(a_pack), "r"(a_pack), "r"(a_pack), "r"(a_pack),         \
-                 "r"(b_pack), "r"(b_pack), "f"(base), "f"(base),             \
-                 "f"(base), "f"(base))
+                 "r"(b_pack), "r"(b_pack), "f"(c0), "f"(c1),                 \
+                 "f"(c2), "f"(c3))
 
 template <MmaVariant variant>
-__device__ __forceinline__ void run_direct_mma(std::uint32_t a_pack,
-                                               std::uint32_t b_pack, float base,
-                                               float *out) {
+__device__ __forceinline__ void run_direct_mma_fragment(
+    std::uint32_t a_pack, std::uint32_t b_pack, float c0, float c1, float c2,
+    float c3, float *out0, float *out1, float *out2, float *out3) {
   float d0;
   float d1;
   float d2;
@@ -186,30 +185,60 @@ __device__ __forceinline__ void run_direct_mma(std::uint32_t a_pack,
         "mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m1.e2m1.f32");
   }
 
+  *out0 = d0;
+  *out1 = d1;
+  *out2 = d2;
+  *out3 = d3;
+}
+
+template <MmaVariant variant, int repeat_count>
+__device__ __forceinline__ void run_direct_mma_chain(std::uint32_t a_pack,
+                                                     std::uint32_t b_pack,
+                                                     float base, float *out) {
+  float c0 = base;
+  float c1 = base;
+  float c2 = base;
+  float c3 = base;
+
+#pragma unroll
+  for (int repeat = 0; repeat < repeat_count; ++repeat) {
+    float d0;
+    float d1;
+    float d2;
+    float d3;
+    run_direct_mma_fragment<variant>(a_pack, b_pack, c0, c1, c2, c3, &d0, &d1,
+                                     &d2, &d3);
+    c0 = d0;
+    c1 = d1;
+    c2 = d2;
+    c3 = d3;
+  }
+
   if ((threadIdx.x & 31) == 0) {
-    out[0] = d0;
-    out[1] = d1;
-    out[2] = d2;
-    out[3] = d3;
+    out[0] = c0;
+    out[1] = c1;
+    out[2] = c2;
+    out[3] = c3;
   }
 }
 
 #undef TCNB_MMA_ASM
 
-template <MmaVariant variant>
+template <MmaVariant variant, int repeat_count>
 __global__ void reduction_width_kernel(std::uint32_t a_pack,
                                        std::uint32_t b_pack, float base,
                                        float *out) {
-  run_direct_mma<variant>(a_pack, b_pack, base, out);
+  run_direct_mma_chain<variant, repeat_count>(a_pack, b_pack, base, out);
 }
 
-template <MmaVariant variant>
+template <MmaVariant variant, int repeat_count>
 static float run_once(std::uint32_t a_pack, std::uint32_t b_pack, int shift,
                       float *device_out) {
   float host_out[4] = {};
   float base = std::ldexp(1.0f, shift);
 
-  reduction_width_kernel<variant><<<1, 32>>>(a_pack, b_pack, base, device_out);
+  reduction_width_kernel<variant, repeat_count><<<1, 32>>>(a_pack, b_pack,
+                                                           base, device_out);
   TCNB_CUDA_CHECK(cudaGetLastError());
   TCNB_CUDA_CHECK(cudaMemcpy(host_out, device_out, sizeof(host_out),
                              cudaMemcpyDeviceToHost));
@@ -217,7 +246,7 @@ static float run_once(std::uint32_t a_pack, std::uint32_t b_pack, int shift,
   return host_out[0];
 }
 
-template <MmaVariant variant> static WidthResult probe_variant() {
+template <MmaVariant variant, int repeat_count> static WidthResult probe_variant() {
   WidthResult result = {};
   result.executed = false;
   result.max_changed_shift = -1;
@@ -234,7 +263,8 @@ template <MmaVariant variant> static WidthResult probe_variant() {
 
   for (int shift = kMinShift; shift <= kMaxShift; ++shift) {
     float base = std::ldexp(1.0f, shift);
-    float sample = run_once<variant>(a_pack, b_pack, shift, device_out);
+    float sample = run_once<variant, repeat_count>(a_pack, b_pack, shift,
+                                                   device_out);
     result.executed = true;
 
     if (sample > base) {
@@ -255,19 +285,42 @@ template <MmaVariant variant> static WidthResult probe_variant() {
   return result;
 }
 
+static int max_shift_for_width(int log2_contribution, int width_bits) {
+  return log2_contribution + width_bits - 1;
+}
+
 static bool print_result(FILE *outfile, MmaVariant variant,
-                         const WidthResult &result) {
+                         const WidthResult &result, int repeat_count,
+                         int log2_contribution) {
+  int total_contribution = kInstructionK * repeat_count;
+  int binary32_per_mma_reference_max_shift =
+      max_shift_for_width(kLog2InstructionK, kExpectedBinary32Bits);
+  int single_round_21_bit_max_shift =
+      max_shift_for_width(log2_contribution, kObservedModelBits);
+  int single_round_binary32_max_shift =
+      max_shift_for_width(log2_contribution, kExpectedBinary32Bits);
+
   fprintf(outfile, "  | %-58s |\n", variant_label(variant));
   fprintf(outfile, "  |   PTX: %-51s |\n", variant_instruction(variant));
   fprintf(outfile, "  |   K per instruction: %-35d |\n", kInstructionK);
+  fprintf(outfile, "  |   repeated MMA instructions: %-24d |\n",
+          repeat_count);
+  fprintf(outfile, "  |   total contribution: %-32d |\n",
+          total_contribution);
   fprintf(outfile, "  |   max shift with D > C: %-27d |\n",
           result.max_changed_shift);
-  fprintf(outfile, "  |   observed width bits: %-31d |\n",
+  fprintf(outfile, "  |   per-MMA observed width bits: %-23d |\n",
           result.observed_bits);
-  fprintf(outfile, "  |   binary32 reference max shift: %-20d |\n",
-          kExpectedBinary32MaxShift);
+  fprintf(outfile, "  |   binary32 per-MMA reference shift: %-17d |\n",
+          binary32_per_mma_reference_max_shift);
   fprintf(outfile, "  |   binary32 reference bits: %-25d |\n",
           kExpectedBinary32Bits);
+  if (repeat_count > 1) {
+    fprintf(outfile, "  |   single-round 21-bit shift: %-23d |\n",
+            single_round_21_bit_max_shift);
+    fprintf(outfile, "  |   single-round binary32 shift: %-22d |\n",
+            single_round_binary32_max_shift);
+  }
   fprintf(outfile, "  |   sample at max shift: %-28.9g |\n",
           result.sample_at_max);
   fprintf(outfile, "  |   sample after max shift: %-26.9g |\n",
@@ -279,39 +332,82 @@ static bool print_result(FILE *outfile, MmaVariant variant,
   return passed;
 }
 
+template <MmaVariant variant>
+static bool print_single_result(FILE *outfile) {
+  return print_result(outfile, variant, probe_variant<variant, 1>(), 1,
+                      kLog2InstructionK);
+}
+
+template <MmaVariant variant, int repeat_count, int log2_repeat_count>
+static bool print_repeat_result(FILE *outfile) {
+  const int log2_contribution = kLog2InstructionK + log2_repeat_count;
+  WidthResult result = probe_variant<variant, repeat_count>();
+  bool passed =
+      print_result(outfile, variant, result, repeat_count, log2_contribution);
+  int expected_model_max_shift =
+      max_shift_for_width(kLog2InstructionK, kObservedModelBits);
+  fprintf(outfile, "  |   per-MMA 21-bit model shift: %-20d |\n",
+          expected_model_max_shift);
+  printitem(outfile, "*) Matches per-MMA 21-bit model");
+  bool model_pass = result.max_changed_shift == expected_model_max_shift &&
+                    result.observed_bits == kObservedModelBits;
+  printpass(outfile, model_pass);
+  return passed && model_pass;
+}
+
+template <MmaVariant variant>
+static bool print_repeat_results(FILE *outfile) {
+  bool pass = true;
+  pass = print_repeat_result<variant, 2, 1>(outfile) && pass;
+  pass = print_repeat_result<variant, 4, 2>(outfile) && pass;
+  pass = print_repeat_result<variant, 8, 3>(outfile) && pass;
+  pass = print_repeat_result<variant, 16, 4>(outfile) && pass;
+  return pass;
+}
+
 int main(int argc, char **argv) {
   FILE *outfile = stdout;
   bool pass = true;
 
+#if defined(TCNB_REDUCTION_REPEAT)
+  printheader(outfile,
+              "A. 5090 repeated-MMA low-precision reduction-width probe");
+  fprintf(outfile, "  | Probe: %-51s |\n", "D = 2^shift + repeat_count * K");
+  fprintf(outfile, "  | Method: %-50s |\n", "chain 2/4/8/16 direct MMA ops");
+  fprintf(outfile, "  | Notes: %-51s |\n", "same warp, accumulator fed forward");
+#else
   printheader(outfile, "A. 5090 direct-PTX low-precision reduction-width probe");
   fprintf(outfile, "  | Probe: %-51s |\n", "D = 2^shift + K");
   fprintf(outfile, "  | Method: %-50s |\n", "scan largest shift where D changes");
   fprintf(outfile, "  | Notes: %-51s |\n", "single warp, direct mma.sync.aligned PTX");
+#endif
 
 #if defined(TCNB_REDUCTION_FP8)
-  pass = print_result(outfile, kFp8E4m3E4m3,
-                      probe_variant<kFp8E4m3E4m3>()) &&
-         pass;
-  pass = print_result(outfile, kFp8E5m2E5m2,
-                      probe_variant<kFp8E5m2E5m2>()) &&
-         pass;
-  pass = print_result(outfile, kFp8E4m3E5m2,
-                      probe_variant<kFp8E4m3E5m2>()) &&
-         pass;
-  pass = print_result(outfile, kFp8E5m2E4m3,
-                      probe_variant<kFp8E5m2E4m3>()) &&
-         pass;
+#if defined(TCNB_REDUCTION_REPEAT)
+  pass = print_repeat_results<kFp8E4m3E4m3>(outfile) && pass;
+  pass = print_repeat_results<kFp8E5m2E5m2>(outfile) && pass;
+  pass = print_repeat_results<kFp8E4m3E5m2>(outfile) && pass;
+  pass = print_repeat_results<kFp8E5m2E4m3>(outfile) && pass;
+#else
+  pass = print_single_result<kFp8E4m3E4m3>(outfile) && pass;
+  pass = print_single_result<kFp8E5m2E5m2>(outfile) && pass;
+  pass = print_single_result<kFp8E4m3E5m2>(outfile) && pass;
+  pass = print_single_result<kFp8E5m2E4m3>(outfile) && pass;
+#endif
 #elif defined(TCNB_REDUCTION_FP6)
-  pass = print_result(outfile, kFp6E2m3E2m3,
-                      probe_variant<kFp6E2m3E2m3>()) &&
-         pass;
-  pass = print_result(outfile, kFp6E3m2E3m2,
-                      probe_variant<kFp6E3m2E3m2>()) &&
-         pass;
+#if defined(TCNB_REDUCTION_REPEAT)
+  pass = print_repeat_results<kFp6E2m3E2m3>(outfile) && pass;
+  pass = print_repeat_results<kFp6E3m2E3m2>(outfile) && pass;
+#else
+  pass = print_single_result<kFp6E2m3E2m3>(outfile) && pass;
+  pass = print_single_result<kFp6E3m2E3m2>(outfile) && pass;
+#endif
 #elif defined(TCNB_REDUCTION_FP4)
-  pass = print_result(outfile, kFp4E2m1E2m1,
-                      probe_variant<kFp4E2m1E2m1>()) &&
-         pass;
+#if defined(TCNB_REDUCTION_REPEAT)
+  pass = print_repeat_results<kFp4E2m1E2m1>(outfile) && pass;
+#else
+  pass = print_single_result<kFp4E2m1E2m1>(outfile) && pass;
+#endif
 #else
 #error "Define one TCNB_REDUCTION_* format macro"
 #endif

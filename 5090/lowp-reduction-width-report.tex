@@ -111,7 +111,9 @@ All tested FP8, FP6, and FP4 direct-PTX QMMA variants expose a
 \textbf{21-bit effective addition/reduction boundary} for the
 \texttt{m16n8k32} probe. The binary32 reference for the same probe is
 \textbf{24 bits}, so the measured low-precision tensor-core path is
-\textbf{3 effective bits narrower} in this test.
+\textbf{3 effective bits narrower} in this test. A chained-MMA cross-check
+with 2/4/8/16 dependent updates confirms that the boundary is applied per MMA
+update.
 \end{summarybox}
 \vspace{0.2in}
 \begin{tabularx}{\linewidth}{>{\bfseries}l Y}
@@ -130,9 +132,9 @@ Source & \texttt{src/tc\_test\_numerics-5090-lowp-reduction-width.cu} \\
 
 The tests execute inline PTX \texttt{mma.sync.aligned} instructions directly
 from a single warp. They do not call cuBLASLt or any GEMM library. The reported
-quantity is an externally observable effective addition/reduction width for one
-\texttt{m16n8k32} instruction. It should not be read as a complete physical map
-of the internal reduction tree.
+quantity is an externally observable effective addition/reduction width per
+\texttt{m16n8k32} instruction update. It should not be read as a complete
+physical map of the internal reduction tree.
 
 FP8 uses regular unscaled FP8 MMA instructions. FP6 and FP4 use the PTX
 \texttt{kind::f8f6f4} form. Compact block-scaled MXFP4/MXFP6 instructions are
@@ -167,6 +169,21 @@ the binary32 reference max shift is:
   \log_2(32) + 24 - 1 = 28
 \]
 
+\subsection{Independent Cross-Check}
+
+A second setting chains dependent MMA updates in the same warp:
+
+\[
+  C_0 = 2^{shift},\quad C_{n+1} = MMA(A=1,B=1,C=C_n)
+\]
+
+The repeat counts are 2, 4, 8, and 16. If all repeated contributions were
+combined and rounded only once, a 21-bit path would move the max shift to
+26/27/28/29. The observed max shift instead remains 25 for every repeat count
+and every tested FP8/FP6/FP4 variant. This confirms a per-MMA 21-bit update
+boundary in a setting that is intentionally different from the single-MMA
+probe.
+
 \section{Key Code Snippets}
 
 The constants define the K dimension, scan interval, and binary32 reference.
@@ -177,8 +194,7 @@ static const int kLog2InstructionK = 5;
 static const int kMinShift = 16;
 static const int kMaxShift = 40;
 static const int kExpectedBinary32Bits = std::numeric_limits<float>::digits;
-static const int kExpectedBinary32MaxShift =
-    kLog2InstructionK + kExpectedBinary32Bits - 1;
+enum { kObservedModelBits = 21 };
 \end{lstlisting}
 
 FP4 E2M1 values are shifted into the central four bits required by the
@@ -199,8 +215,32 @@ The MMA path is direct inline PTX. The output operands are binary32 registers.
                            "{%10, %11, %12, %13};\n"                           \
                : "=f"(d0), "=f"(d1), "=f"(d2), "=f"(d3)                       \
                : "r"(a_pack), "r"(a_pack), "r"(a_pack), "r"(a_pack),         \
-                 "r"(b_pack), "r"(b_pack), "f"(base), "f"(base),             \
-                 "f"(base), "f"(base))
+                 "r"(b_pack), "r"(b_pack), "f"(c0), "f"(c1),                 \
+                 "f"(c2), "f"(c3))
+\end{lstlisting}
+
+The cross-check feeds the accumulator registers forward through a chain of
+direct MMA updates.
+
+\begin{lstlisting}[language=C++]
+float c0 = base;
+float c1 = base;
+float c2 = base;
+float c3 = base;
+
+#pragma unroll
+for (int repeat = 0; repeat < repeat_count; ++repeat) {
+  float d0;
+  float d1;
+  float d2;
+  float d3;
+  run_direct_mma_fragment<variant>(a_pack, b_pack, c0, c1, c2, c3,
+                                   &d0, &d1, &d2, &d3);
+  c0 = d0;
+  c1 = d1;
+  c2 = d2;
+  c3 = d3;
+}
 \end{lstlisting}
 
 The scan records the last visible contribution and converts it to bits.
@@ -283,6 +323,29 @@ At shift 25, the base is \(2^{25}=33{,}554{,}432\), and the observed sample is
 unchanged sample is 67,108,864, equal to \(2^{26}\). The contribution is no
 longer visible.
 
+\subsection{Chained-MMA Cross-Check}
+
+All tested FP8, FP6, and FP4 variants produced the same chained-update pattern.
+The max shift stays at 25 even as the nominal total contribution grows.
+
+{\footnotesize
+\begin{tabularx}{\linewidth}{R R R R R R}
+\toprule
+Repeat & Total & 21-bit once & binary32 once & Observed & Bits \\
+\midrule
+2 & 64 & 26 & 29 & 25 & 21 \\
+4 & 128 & 27 & 30 & 25 & 21 \\
+8 & 256 & 28 & 31 & 25 & 21 \\
+16 & 512 & 29 & 32 & 25 & 21 \\
+\bottomrule
+\end{tabularx}
+}
+
+This rules out the once-rounded total-contribution model for the chained
+setting. A sub-threshold \(+32\) update at \(2^{26}\) is lost on each MMA
+update; repeating it does not recover hidden contribution. The visible boundary
+is per MMA update.
+
 \section{Facts and Evidence}
 
 \begin{tabularx}{\linewidth}{>{\bfseries}p{1.75in} Y}
@@ -293,6 +356,7 @@ Direct PTX path & The source emits inline \texttt{mma.sync.aligned}; no cuBLASLt
 Single-instruction boundary & Each sample launches one warp and one \texttt{m16n8k32} MMA for the selected variant. \\
 Exact input contribution & All A and B operands encode \texttt{1.0}; the K dimension contributes exactly 32. \\
 Uniform observed width & All FP8, FP6, and FP4 result files report max shift 25 and width 21. \\
+Independent chained cross-check & Repeat counts 2/4/8/16 all keep max shift 25 and per-MMA observed width 21. \\
 Binary32 comparison & Binary32 would produce max shift 28 for the same K and boundary formula. \\
 \bottomrule
 \end{tabularx}
@@ -316,16 +380,25 @@ Target & Confirmed SASS mnemonics \\
 \begin{lstlisting}[language=bash]
 make -B test-5090-fp8-reduction-width \
         test-5090-fp6-reduction-width \
-        test-5090-fp4-reduction-width
+        test-5090-fp4-reduction-width \
+        test-5090-fp8-reduction-repeat \
+        test-5090-fp6-reduction-repeat \
+        test-5090-fp4-reduction-repeat
 
 python3 run_tests.py -o 5090 \
         5090-fp8-reduction-width \
         5090-fp6-reduction-width \
-        5090-fp4-reduction-width
+        5090-fp4-reduction-width \
+        5090-fp8-reduction-repeat \
+        5090-fp6-reduction-repeat \
+        5090-fp4-reduction-repeat
 
 cuobjdump --dump-sass test-5090-fp8-reduction-width
 cuobjdump --dump-sass test-5090-fp6-reduction-width
 cuobjdump --dump-sass test-5090-fp4-reduction-width
+cuobjdump --dump-sass test-5090-fp8-reduction-repeat
+cuobjdump --dump-sass test-5090-fp6-reduction-repeat
+cuobjdump --dump-sass test-5090-fp4-reduction-repeat
 \end{lstlisting}
 
 \section{Interpretation}
@@ -336,14 +409,17 @@ contribution is exact, and SASS confirms direct tensor-core QMMA instructions.
 The measured path simply stops preserving the \(+32\) contribution three shifts
 earlier than a full binary32 significand path would.
 
-The result is consistent across all tested FP8, FP6, and FP4 input type
-combinations: the observable effective addition/reduction boundary is 21 bits.
+The chained-MMA cross-check strengthens this interpretation. The observed
+boundary remains at shift 25 for repeat counts 2/4/8/16 rather than moving with
+the nominal total contribution. The result is consistent across all tested FP8,
+FP6, and FP4 input type combinations: the observable effective
+addition/reduction boundary is 21 bits per MMA update.
 
 \section{Limitations}
 
 \begin{itemize}
-\item This is a single-instruction \texttt{m16n8k32} boundary probe, not a full
-GEMM accuracy characterization.
+\item This is a \texttt{m16n8k32} boundary probe plus dependent chains of that
+same instruction, not a full GEMM accuracy characterization.
 \item The measurement reports observable effective width, not the internal
 physical topology of the hardware reduction tree.
 \item FP6 and FP4 are tested through the PTX \texttt{kind::f8f6f4} form.
@@ -356,10 +432,11 @@ different rounding and normalization behavior.
 
 \begin{summarybox}
 RTX 5090 direct-PTX FP8, FP6, and FP4 tensor-core MMA instructions tested here
-all measure at 21 effective reduction/addition bits for the \texttt{m16n8k32}
-boundary probe. The binary32 reference is 24 bits. The observed low-precision
-QMMA path is therefore consistently 3 effective bits narrower than binary32 for
-this measurement.
+all measure at 21 effective reduction/addition bits per \texttt{m16n8k32} MMA
+update. The chained-MMA cross-check confirms the same per-update boundary in a
+different setting. The binary32 reference is 24 bits. The observed
+low-precision QMMA path is therefore consistently 3 effective bits narrower
+than binary32 for this measurement.
 \end{summarybox}
 
 \end{document}

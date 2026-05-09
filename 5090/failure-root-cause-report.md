@@ -59,9 +59,13 @@ The direct PTX low-precision reduction-width probes also pass:
 | `test-5090-fp8-reduction-width` | Direct PTX FP8 `mma.sync.aligned.m16n8k32` |
 | `test-5090-fp6-reduction-width` | Direct PTX FP6 `.kind::f8f6f4` `mma.sync.aligned.m16n8k32` |
 | `test-5090-fp4-reduction-width` | Direct PTX FP4 E2M1 `.kind::f8f6f4` `mma.sync.aligned.m16n8k32` |
+| `test-5090-fp8-reduction-repeat` | Chained direct PTX FP8 MMA cross-check |
+| `test-5090-fp6-reduction-repeat` | Chained direct PTX FP6 MMA cross-check |
+| `test-5090-fp4-reduction-repeat` | Chained direct PTX FP4 MMA cross-check |
 
 Those probes observe a 21-bit effective reduction/addition width for the tested
-FP8, FP6, and FP4 tensor-core MMA paths. Details are in
+FP8, FP6, and FP4 tensor-core MMA paths. The repeated-MMA cross-check keeps the
+same per-MMA boundary for repeat counts 2/4/8/16. Details are in
 `5090/lowp-reduction-width-report.md`.
 
 ## Tensor-Core Instructions
